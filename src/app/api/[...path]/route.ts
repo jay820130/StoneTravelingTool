@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { randomUUID } from "node:crypto";
 import { configured, serverClient } from "@/lib/supabase/server";
+import { loginFailure } from "@/lib/supabase/login-error";
 import { loadLibrary } from "@/lib/library";
 import { normalizeRegion, placeSchema, sourceUrl, visitSchema } from "@/lib/domain";
 import { exportLibrary, exportSchema } from "@/lib/export";
@@ -75,14 +76,19 @@ async function handle(req: NextRequest, { params }: { params: Promise<{ path: st
         .object({ email: z.email().max(320), password: z.string().min(1).max(200) })
         .parse(await readJson(req));
       const { data, error } = await db.auth.signInWithPassword(input);
-      if (error) throw new ApiError(401, "登入失敗，請確認電子郵件與密碼");
+      if (error) {
+        const failure = loginFailure(error);
+        throw new ApiError(failure.status, failure.message);
+      }
       const member = await db
         .from("profiles")
         .select("owner_id")
         .eq("owner_id", data.user.id)
         .maybeSingle();
-      if (!member.data) {
+      if (member.error || !member.data) {
         await db.auth.signOut();
+        if (member.error)
+          throw new ApiError(503, "登入後無法確認使用權限，請稍後再試或聯絡網站管理者");
         throw new ApiError(403, "此帳號尚未受邀使用");
       }
       return json({ ok: true });

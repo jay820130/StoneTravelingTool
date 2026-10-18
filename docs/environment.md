@@ -35,3 +35,7 @@ Next 16 的 dev server 需要 `allowedDevOrigins: ['127.0.0.1']` 才能讓此環
 本機 CLI 2.76.8 的 `[auth.email].enable_signup` 也影響 email provider 是否啟用，所以保留 `true` 以允許密碼登入；公開註冊由全域 `[auth].enable_signup = false` 關閉。正式 Dashboard 應保留 Email provider，同時關閉 Allow new users to sign up，不能把登入 provider 一起關掉。
 
 `bash scripts/cloud-setup.sh` 是可重跑的安裝與檢查入口，不建立私人帳號、不清理測試帳號、不重置資料庫。自訂 `.env.local` 會保留，只有本腳本產生的本機設定會更新。
+
+## 正式網站連線
+
+正式網站為 `https://stone-traveling-tool.vercel.app/`，正式 Supabase 為 `https://cwkaosndndbzhtppvmat.supabase.co`。2026-10-18 兩者的 HTTPS CONNECT 都曾被代理回應 403；實際 hostname 已加入 Codex 環境草稿。後續 Python urllib 經既有代理、保留 TLS 驗證重試正式網站已成功，匿名 HTTP 驗證見部署文件；Supabase 主機尚未重新驗證。Chromium 經相同代理則回報 `ERR_CERT_AUTHORITY_INVALID`，屬此環境瀏覽器憑證信任問題，未停用驗證。保留既有允許網域與 package_managers 預設集，不改用停用 TLS 或繞過代理的方式。儲存草稿不代表立即套用或發布。

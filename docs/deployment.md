@@ -1,6 +1,6 @@
 # 正式設定、部署與備份
 
-使用者已於 2026-10-18 完成建立 Supabase 專案、私人登入設定、個人 Auth 帳號與首次初始化。使用者提供的 SQL Editor 結果截圖顯示：`status=初始化完成`、`invited_accounts=1`、`protected_tables=10`、`screenshots_private=true`。已取得 Project URL：`https://cwkaosndndbzhtppvmat.supabase.co`；不要附加 `/rest/v1/`。網站與正式專案的連線及登入尚未驗證，金鑰將由使用者填入 Vercel 的環境變數欄位。尚未部署網站，也未開通付費方案或網域。不需要一開始就提供 AI 金鑰。
+使用者已於 2026-10-18 完成建立 Supabase 專案、私人登入設定、個人 Auth 帳號與首次初始化。使用者提供的 SQL Editor 結果截圖顯示：`status=初始化完成`、`invited_accounts=1`、`protected_tables=10`、`screenshots_private=true`。Project URL 為 `https://cwkaosndndbzhtppvmat.supabase.co`；不要附加 `/rest/v1/`。使用者已提供 Vercel 首次部署成功畫面與正式網址 [stone-traveling-tool.vercel.app](https://stone-traveling-tool.vercel.app/)。網站與正式 Supabase 的連線及登入尚待驗證；金鑰由使用者直接填入 Vercel 環境變數，不在對話或 Git 保存。尚未開通付費方案或自訂網域，不需要一開始就提供 AI 金鑰。
 
 ## 1. Supabase
 
@@ -29,13 +29,17 @@
 
 ## 2. 部署 Next.js
 
-使用者尚無 Vercel 帳號，正在引導建立個人 Hobby 帳號並使用 GitHub 登入；尚未部署，不自動開通付費方案。
+使用者已建立個人 Hobby 帳號，以 GitHub 匯入本專案並完成首次部署。正式網址為 `https://stone-traveling-tool.vercel.app/`；首次實作提交為 `590e20a65aa240328320218ea2e13741e597d137`，已快轉整合至 `main`。後續修正由 `main` 部署，不能只憑部署成功畫面宣稱正式登入與資料存取已驗證。
 
 1. 匯入此儲存庫，framework 選 Next.js，root 是根目錄，安裝 `npm ci`，建置 `npm run build`。亦可使用 Vercel CLI 或其他 Git 供應商。
-2. 在 Production／Preview 的安全設定填入 Supabase 變數。建議測試與正式資料庫分開。
-3. Supabase Auth Site URL 設為網站網址，redirect URL 使用明確網址。本站不要求 Google 帳號。
+2. 在 Production 的安全設定填入 Supabase 變數。Preview 應使用獨立測試資料庫，勿預設共用正式金鑰。
+3. 在 Supabase → Authentication → URL Configuration，將 Site URL 設為 `https://stone-traveling-tool.vercel.app` 並儲存；使用者已提供顯示正確網址的設定截圖。本站目前使用 Email／密碼登入，不依賴 OAuth callback；Redirect URLs 空白不會造成這種登入方式失敗，未來需要 redirect 時才加入實際使用的明確網址。
 4. 依進度文件與 iPhone 文件驗證未登入、另一帳號、重新登入、附件及匯出，不能只看建置成功。
 5. 開通前再次確認 Vercel 當前方案、使用資格、Function 時間／請求大小／流量限制；尚未核實帳戶費用，不會自動付費。可先用平台網域。
+
+Codex 起初對此網域的 HTTPS CONNECT 被代理回應 403；2026-10-18 後續重試已可連線。實際 HTTP 檢查：首頁 200；`/api/session` 200 且 `configured=true`、`user=null`；匿名 `/api/library` 和 `/api/worker` 均 401；本站 Origin 的空登入表單回應資料驗證 400，其他 Origin 回應 403。這只證明設定存在與匿名限制，尚未證明 Supabase 金鑰有效或私人帳號能登入。使用者截圖的錯誤為「登入失敗，請確認電子郵件與密碼」。原版把所有 Supabase Auth 錯誤合併為此訊息，已修正為依錯誤代碼區分帳密、Email 未驗證、停用 Email provider、頻率限制與服務設定／連線失敗；回應僅含固定文字，不輸出供應商原始內容或憑證。成員資格查詢失敗也與確實未受邀分開處理，兩者仍會登出。正式帳號登入原因仍待帳號狀態與更新後回應確認。
+
+正式網站的 Chromium 自動檢查因本環境代理憑證信任錯誤 `ERR_CERT_AUTHORITY_INVALID` 無法載入，未停用 TLS 驗證；不可據此認定使用者瀏覽器有同樣問題。登入修復後再驗證手動收藏、重新整理與重新登入後保留資料。不要對正式資料庫執行本機測試帳號腳本。
 
 ## 3. 持久化背景工作
 
