@@ -1,6 +1,6 @@
 # 實作與驗證進度
 
-更新：2026-10-18。本專案已從 README／需求文件初始化為可使用真實本機 Supabase 的應用程式；使用者已提供 **Vercel 首次部署成功畫面**，正式網址為 [stone-traveling-tool.vercel.app](https://stone-traveling-tool.vercel.app/)，正式登入與資料保存尚待驗證。需求原文未修改。程式沒有假登入，也不以瀏覽器儲存取代正式資料庫。
+更新：2026-10-18。本專案已從 README／需求文件初始化為可使用真實本機 Supabase 的應用程式；使用者已提供 **Vercel 首次部署成功畫面**，正式網址為 [stone-traveling-tool.vercel.app](https://stone-traveling-tool.vercel.app/)，並回報正式帳號已成功登入；正式資料保存仍待驗證。需求原文未修改。程式沒有假登入，也不以瀏覽器儲存取代正式資料庫。
 
 ## 已實作
 
@@ -41,9 +41,9 @@
 
 ## 剩餘外部條件與限制
 
-1. 使用者已於 2026-10-18 完成 Supabase 建立、私人登入設定、個人 Auth 帳號及首次初始化；SQL Editor 結果截圖確認 1 個受邀帳號、10 張啟用 RLS 的 public 資料表、私人 screenshots bucket。Project URL 為 `https://cwkaosndndbzhtppvmat.supabase.co`，網站尚未連線驗證該正式專案；目前雲端開發環境對此主機的 HTTPS CONNECT 回應 403，已加入環境草稿允許清單，但尚未套用驗證。
-2. 使用者已建立 Vercel Hobby 帳號並完成首次部署，正式網址 `https://stone-traveling-tool.vercel.app/`，Site URL 設定截圖正確。Codex 起初的 CONNECT 403 在後續重試已消失；HTTP 已驗證首頁與匿名 session 為 200、私人資料與 worker 拒絕匿名、登入 API 的 Origin 與空輸入驗證生效。`configured=true` 只確認變數存在，不能驗證金鑰有效。使用者登入時顯示「登入失敗，請確認電子郵件與密碼」，程式原先把所有 Auth 錯誤合併成同一句，現已修正錯誤分類；正在確認使用者 Auth 帳號狀態與正式回應。正式登入、資料保存與雲端排程仍待完成／驗證。正式 Chromium 檢查受此環境代理憑證信任限制，未繞過 TLS。未開通付費服務或自訂網域。
-3. 尚無 AI key 與真實 IG、Threads、Maps 樣本。可先使用手動流程；有樣本與授權後才驗證文字／截圖解析，不把測試回應當作真實 AI 成果。
+1. 使用者已於 2026-10-18 完成 Supabase 建立、私人登入設定、個人 Auth 帳號及首次初始化；SQL Editor 結果截圖確認 1 個受邀帳號、10 張啟用 RLS 的 public 資料表、私人 screenshots bucket。Project URL 為 `https://cwkaosndndbzhtppvmat.supabase.co`，使用者已回報網站正式登入成功。Codex 曾對此主機的 HTTPS CONNECT 收到 403，已加入環境草稿允許清單，但尚未重試直接呼叫該主機；這與網站伺服器到 Supabase 的連線是不同路徑。
+2. 使用者已建立 Vercel Hobby 帳號並完成首次部署，正式網址 `https://stone-traveling-tool.vercel.app/`，Site URL 設定截圖正確。Codex 起初的 CONNECT 403 在後續重試已消失；HTTP 已驗證首頁與匿名 session 為 200、私人資料與 worker 拒絕匿名、登入 API 的 Origin 與空輸入驗證生效。使用者曾遇到帳密錯誤；程式已修正 Auth 錯誤分類，提交 `20afe6709eb76e8d92978d1d191e39637e9d73a4` 的 Vercel 狀態為部署成功。使用者確認帳號存在且已驗證，之後回報「登進去了」，正式登入已獲使用者確認；先前失敗的確切原因未獨立核實。下一步請使用者手動新增真實店家，確認重新整理與重新登入後仍保留。正式資料保存與雲端排程仍待驗證／設定。正式 Chromium 檢查受此環境代理憑證信任限制，未繞過 TLS。未開通付費服務或自訂網域。
+3. 使用者補充「儲存時出現錯誤」實際指新增 Google Maps 來源後沒有解析；截圖顯示 1 筆來源已保存、狀態為「等待解析」、0 家關聯店家。背景 Cron 與正式 AI 尚未設定，不能把排隊狀態當成已執行解析失敗。已請使用者提供可複製的 Maps 連結；尚未驗證該真實來源讀取。使用者只有 ChatGPT 帳號／訂閱，尚無已設定的 API 金鑰；API 與 ChatGPT 計費分開，下一步逐步引導 API 平台與預算設定。程式已調整為背景工作未設定 AI 時優先顯示「尚未啟用 AI 解析」，避免空內容被誤報為讀取文章失敗。手動店家保存與重新登入保留仍待使用者實測，不把這張來源截圖當完整持久化驗證。
 4. 位置由人工確認座標，目前沒有自動地理編碼或地點搜尋服務。一般多點會自動縮放；大量重疊點尚無群聚，仍可用清單選店。
 5. OSM 只是可替換底圖的預設值；目前環境需允許圖磚主機，上線前確認政策與實際服務額度。PDF 未涵蓋的少數特殊字元顯示方框。
 6. [iPhone 文件](iphone.md) 已提供分享捷徑與逐來源實測步驟，尚未在各來源 App 或 Safari 實機驗證。

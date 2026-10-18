@@ -11,19 +11,19 @@ export async function extractPlaces(
   images: { mime: string; data: string }[],
   call: typeof fetch = fetch,
 ): Promise<ParseResult> {
-  if (!text.trim() && !images.length)
-    return {
-      status: "needs_input",
-      summary: "",
-      candidates: [],
-      error: "讀不到完整文章，請補上文字、店名或截圖。原始連結已保留。",
-    };
   if (!process.env.AI_API_KEY)
     return {
       status: "needs_input",
       summary: "",
       candidates: [],
       error: "尚未啟用 AI 解析。你可以直接新增或連結店家，補充的內容已保存。",
+    };
+  if (!text.trim() && !images.length)
+    return {
+      status: "needs_input",
+      summary: "",
+      candidates: [],
+      error: "讀不到完整文章，請補上文字、店名或截圖。原始連結已保留。",
     };
   const base = process.env.AI_BASE_URL || "https://api.openai.com/v1";
   if (new URL(base).protocol !== "https:") throw new Error("AI endpoint must use HTTPS");

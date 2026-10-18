@@ -75,6 +75,9 @@ describe("first-time hosted project bootstrap", () => {
     await db.exec(`set role anon`);
     await expect(db.query("select * from public.places")).rejects.toThrow(/permission denied/);
     await db.exec(`reset role; set role authenticated; set request.jwt.claim.sub='${owner}'`);
+    expect((await db.query("select public.consume_quota() as allowed")).rows).toEqual([
+      { allowed: true },
+    ]);
     await db.exec("insert into public.places(name) values('初始化後的私人收藏')");
     await db.exec(`set request.jwt.claim.sub='${other}'`);
     expect((await db.query("select * from public.places")).rows).toEqual([]);

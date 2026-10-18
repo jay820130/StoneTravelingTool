@@ -1,6 +1,6 @@
 # 正式設定、部署與備份
 
-使用者已於 2026-10-18 完成建立 Supabase 專案、私人登入設定、個人 Auth 帳號與首次初始化。使用者提供的 SQL Editor 結果截圖顯示：`status=初始化完成`、`invited_accounts=1`、`protected_tables=10`、`screenshots_private=true`。Project URL 為 `https://cwkaosndndbzhtppvmat.supabase.co`；不要附加 `/rest/v1/`。使用者已提供 Vercel 首次部署成功畫面與正式網址 [stone-traveling-tool.vercel.app](https://stone-traveling-tool.vercel.app/)。網站與正式 Supabase 的連線及登入尚待驗證；金鑰由使用者直接填入 Vercel 環境變數，不在對話或 Git 保存。尚未開通付費方案或自訂網域，不需要一開始就提供 AI 金鑰。
+使用者已於 2026-10-18 完成建立 Supabase 專案、私人登入設定、個人 Auth 帳號與首次初始化。使用者提供的 SQL Editor 結果截圖顯示：`status=初始化完成`、`invited_accounts=1`、`protected_tables=10`、`screenshots_private=true`。Project URL 為 `https://cwkaosndndbzhtppvmat.supabase.co`；不要附加 `/rest/v1/`。使用者已提供 Vercel 首次部署成功畫面與正式網址 [stone-traveling-tool.vercel.app](https://stone-traveling-tool.vercel.app/)。使用者已回報正式帳號登入成功，收藏資料保存仍待驗證；金鑰由使用者直接填入 Vercel 環境變數，不在對話或 Git 保存。尚未開通付費方案或自訂網域，不需要一開始就提供 AI 金鑰。
 
 ## 1. Supabase
 
@@ -37,23 +37,28 @@
 4. 依進度文件與 iPhone 文件驗證未登入、另一帳號、重新登入、附件及匯出，不能只看建置成功。
 5. 開通前再次確認 Vercel 當前方案、使用資格、Function 時間／請求大小／流量限制；尚未核實帳戶費用，不會自動付費。可先用平台網域。
 
-Codex 起初對此網域的 HTTPS CONNECT 被代理回應 403；2026-10-18 後續重試已可連線。實際 HTTP 檢查：首頁 200；`/api/session` 200 且 `configured=true`、`user=null`；匿名 `/api/library` 和 `/api/worker` 均 401；本站 Origin 的空登入表單回應資料驗證 400，其他 Origin 回應 403。這只證明設定存在與匿名限制，尚未證明 Supabase 金鑰有效或私人帳號能登入。使用者截圖的錯誤為「登入失敗，請確認電子郵件與密碼」。原版把所有 Supabase Auth 錯誤合併為此訊息，已修正為依錯誤代碼區分帳密、Email 未驗證、停用 Email provider、頻率限制與服務設定／連線失敗；回應僅含固定文字，不輸出供應商原始內容或憑證。成員資格查詢失敗也與確實未受邀分開處理，兩者仍會登出。正式帳號登入原因仍待帳號狀態與更新後回應確認。
+Codex 起初對此網域的 HTTPS CONNECT 被代理回應 403；2026-10-18 後續重試已可連線。實際 HTTP 檢查：首頁 200；`/api/session` 200 且 `configured=true`、`user=null`；匿名 `/api/library` 和 `/api/worker` 均 401；本站 Origin 的空登入表單回應資料驗證 400，其他 Origin 回應 403。這只證明設定存在與匿名限制，尚未證明 Supabase 金鑰有效或私人帳號能登入。使用者截圖的錯誤為「登入失敗，請確認電子郵件與密碼」。原版把所有 Supabase Auth 錯誤合併為此訊息，已修正為依錯誤代碼區分帳密、Email 未驗證、停用 Email provider、頻率限制與服務設定／連線失敗；回應僅含固定文字，不輸出供應商原始內容或憑證。成員資格查詢失敗也與確實未受邀分開處理，兩者仍會登出。先前登入失敗的確切原因未獨立核實，後續結果如下。
 
-正式網站的 Chromium 自動檢查因本環境代理憑證信任錯誤 `ERR_CERT_AUTHORITY_INVALID` 無法載入，未停用 TLS 驗證；不可據此認定使用者瀏覽器有同樣問題。登入修復後再驗證手動收藏、重新整理與重新登入後保留資料。不要對正式資料庫執行本機測試帳號腳本。
+後續結果：提交 `20afe6709eb76e8d92978d1d191e39637e9d73a4` 的 GitHub Vercel 狀態確認部署成功。以一次不存在的測試識別呼叫正式登入 API，收到正常帳密拒絕，未建立帳號或使用私人憑證。使用者確認 Auth 帳號存在且已驗證，之後回報正式網站已可登入；不據此推定先前失敗的確切原因。下一步驗證手動收藏、重新整理與重新登入後保留資料。不要對正式資料庫執行本機測試帳號腳本。
+
+正式網站的 Chromium 自動檢查因本環境代理憑證信任錯誤 `ERR_CERT_AUTHORITY_INVALID` 無法載入，未停用 TLS 驗證；不可據此認定使用者瀏覽器有同樣問題。
 
 ## 3. 持久化背景工作
 
 本機執行 `npm run worker`；正式環境用 Supabase Cron + pg_net 呼叫 `/api/worker`，不依賴 HTTP 結束後仍存活的程序。
 
 1. 部署平台安全設定建立高強度隨機 `CRON_SECRET`。
-2. Supabase Vault 新增 `stone_worker_url`（完整 HTTPS `/api/worker` URL）及 `stone_cron_secret`（同一個 secret），不把值放 SQL 檔或 Git。
+2. Supabase Vault 新增 `stone_worker_url`（本專案為 `https://stone-traveling-tool.vercel.app/api/worker`）及 `stone_cron_secret`（與 Vercel `CRON_SECRET` 相同），不把實際密鑰放 SQL 檔或 Git。Vercel 變數選 Production，修改後需重新部署才套用。
 3. 確認專案支援 Cron／pg_net 後執行 `supabase/optional/cron.sql`。每分鐘只在有待處理或逾時工作時發請求；一次一項，資料庫鎖阻擋重複領取。
 4. 先不開 AI，新增測試連結應從等待解析變為待補內容，確認排程實際執行，再啟用 AI。
 5. 監控 Cron 歷史與 import_jobs 狀態，不記錄私人內容或 key；腳本僅清除此應用七天前的排程歷史。
 
+目前使用者已保存一筆 Google Maps 來源，畫面為「等待解析」；正式 Cron 與 AI 尚未設定，尚未執行這筆來源的解析。來源無須重複新增。無 AI 時背景工作會明確轉為「待補內容」並顯示尚未啟用 AI；之後設定 AI，可在既有來源的補充內容視窗按「儲存補充內容並重新解析」重新排入工作。
+
 ## 4. AI 與底圖
 
 - 設定支援 JSON 和圖片的 OpenAI 相容服務：`AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL`。預設是可替換起點，未進行真實付費呼叫。先確認當前圖片能力、資料保留與費用，設定預算／警示，再放入 key。
+- 使用者目前只有 ChatGPT 帳號／訂閱。可以使用同一 OpenAI 帳號登入 API 平台，但 ChatGPT 訂閱不包含 API 額度；API 計費與預算需另外由使用者確認，尚未開通或執行付費解析。金鑰直接填入 Vercel Production 的 `AI_API_KEY`，不貼到對話；本機測試仍不使用真實 AI 金鑰。
 - 沒有 AI 時不發送資料，手動功能可繼續。社群網站可能限制讀取，需補文字／截圖，不承諾所有 IG、Threads、影片都能解析。
 - `NEXT_PUBLIC_MAP_TILE_URL`、`NEXT_PUBLIC_MAP_ATTRIBUTION` 可更換底圖。OSM 公共底圖僅供少量互動開發驗證；上線前閱讀最新政策，保留署名與 Referer，不預抓或離線下載。較大量需求需比較供應商額度與費用。
 - 目前沒有地理編碼服務，座標由人工確認。Maps 按鈕是一般外連，不使用付費 Places API 或儲存其專有資料。

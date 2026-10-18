@@ -3,14 +3,23 @@ import { extractPlaces } from "../src/lib/parser";
 afterEach(() => vi.unstubAllEnvs());
 describe("honest parsing and AI boundaries", () => {
   it("reports unreadable content as needs_input rather than success", async () => {
-    const result = await extractPlaces("", []);
+    vi.stubEnv("AI_API_KEY", "test-only-placeholder");
+    const request = vi.fn();
+    const result = await extractPlaces("", [], request);
     expect(result.status).toBe("needs_input");
     expect(result.candidates).toEqual([]);
+    expect(result.error).toContain("讀不到完整文章");
+    expect(request).not.toHaveBeenCalled();
   });
   it("never calls AI without a configured key", async () => {
     vi.stubEnv("AI_API_KEY", "");
     const request = vi.fn();
-    expect((await extractPlaces("一篇文章", [], request)).status).toBe("needs_input");
+    for (const text of ["", "一篇文章"]) {
+      const result = await extractPlaces(text, [], request);
+      expect(result.status).toBe("needs_input");
+      expect(result.error).toContain("尚未啟用 AI 解析");
+      expect(result.candidates).toEqual([]);
+    }
     expect(request).not.toHaveBeenCalled();
   });
   it("rejects invalid model output instead of persisting fabricated structure", async () => {
