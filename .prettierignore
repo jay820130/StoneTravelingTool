@@ -1,0 +1,8 @@
+node_modules/
+.next/
+.local/
+package-lock.json
+supabase/.temp/
+test-results/
+public/fonts/
+codex_saved_places_prompt.md

@@ -1,0 +1,58 @@
+{
+  "name": "stone-traveling-tool",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "next dev --hostname 0.0.0.0",
+    "build": "next build --webpack",
+    "start": "next start --hostname 0.0.0.0",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "db:start": "node scripts/local-backend.mjs start",
+    "db:stop": "node scripts/local-backend.mjs stop",
+    "db:reset": "node scripts/local-backend.mjs reset",
+    "local:env": "node scripts/local-env.mjs",
+    "tools:setup": "python3 scripts/install-tools.py",
+    "db:status": "node scripts/local-backend.mjs status",
+    "local:account": "python3 scripts/local-account.py",
+    "test:users": "node scripts/test-users.mjs",
+    "worker": "node --env-file=.env.local --import tsx scripts/worker.ts"
+  },
+  "dependencies": {
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.118.0",
+    "exceljs": "4.4.0",
+    "fontkit": "2.0.4",
+    "ipaddr.js": "2.5.0",
+    "leaflet": "1.9.4",
+    "lucide-react": "1.59.0",
+    "next": "16.4.2",
+    "pdf-lib": "1.17.1",
+    "pdfkit": "0.20.2",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.10",
+    "@playwright/test": "1.64.1",
+    "@types/fontkit": "2.0.9",
+    "@types/leaflet": "1.9.22",
+    "@types/node": "26.6.5",
+    "@types/pdfkit": "0.17.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "eslint": "9.39.5",
+    "eslint-config-next": "16.4.2",
+    "prettier": "3.9.10",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vitest": "5.0.5"
+  },
+  "type": "module"
+}
