@@ -1,5 +1,5 @@
 import { adminClient } from "./supabase/admin";
-import { fetchSourceText } from "./safe-fetch";
+import { fetchSourceText, SourceFetchError } from "./safe-fetch";
 import { extractPlaces, type ParseResult } from "./parser";
 export async function processOneJob() {
   const db = adminClient();
@@ -40,29 +40,19 @@ export async function processOneJob() {
           });
       }
     let text = source.content_text;
-    let fetchFailed = false;
-    if (!text && !images.length && process.env.AI_API_KEY) {
-      try {
-        text = await fetchSourceText(source.original_url);
-      } catch {
-        fetchFailed = true;
-      }
-    }
+    if (!text.trim() && !images.length && process.env.AI_API_KEY)
+      text = await fetchSourceText(source.original_url);
     result = await extractPlaces(text, images);
-    if (fetchFailed)
-      result = {
-        status: "needs_input",
-        summary: "",
-        candidates: [],
-        error: "來源網站目前無法讀取，請貼上文章文字或上傳截圖。收藏仍已保存。",
-      };
-  } catch {
-    retry = true;
+  } catch (error) {
+    retry = !(error instanceof SourceFetchError) || error.retryable;
     result = {
-      status: "failed",
+      status: retry ? "failed" : "needs_input",
       summary: "",
       candidates: [],
-      error: "解析暫時失敗，系統最多嘗試三次；你仍可手動整理收藏。",
+      error:
+        error instanceof SourceFetchError
+          ? error.message
+          : "解析暫時失敗，系統最多嘗試三次；你仍可手動整理收藏。",
     };
   }
   const completed = await db.rpc("complete_import_job", {

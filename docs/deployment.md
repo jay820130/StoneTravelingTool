@@ -53,12 +53,13 @@ Codex 起初對此網域的 HTTPS CONNECT 被代理回應 403；2026-10-18 後�
 4. 先不開 AI，新增測試連結應從等待解析變為待補內容，確認排程實際執行，再啟用 AI。
 5. 監控 Cron 歷史與 import_jobs 狀態，不記錄私人內容或 key；腳本僅清除此應用七天前的排程歷史。
 
-目前使用者已保存一筆 Google Maps 來源，畫面為「等待解析」；正式 Cron 與 AI 尚未設定，尚未執行這筆來源的解析。來源無須重複新增。無 AI 時背景工作會明確轉為「待補內容」並顯示尚未啟用 AI；之後設定 AI，可在既有來源的補充內容視窗按「儲存補充內容並重新解析」重新排入工作。
+使用者已於 2026-10-19 完成上述 Vercel／Vault／Cron 設定。來源從「等待解析」轉為「待補內容」，補上文字後得到 Gemini 摘要及候選店家，證明背景執行與文字解析路徑可用；不需重新建立金鑰或排程。Maps 連結自動讀取仍待修正驗收，見 [Maps 匯入排錯](maps-import.md)。
 
 ## 4. AI 與底圖
 
 - 設定支援 JSON 和圖片的 OpenAI 相容服務：`AI_API_KEY`、`AI_BASE_URL`、`AI_MODEL`。預設是可替換起點，未進行真實付費呼叫。先確認當前圖片能力、資料保留與費用，設定預算／警示，再放入 key。
-- 使用者目前只有 ChatGPT 帳號／訂閱。可以使用同一 OpenAI 帳號登入 API 平台，但 ChatGPT 訂閱不包含 API 額度；API 計費與預算需另外由使用者確認，尚未開通或執行付費解析。金鑰直接填入 Vercel Production 的 `AI_API_KEY`，不貼到對話；本機測試仍不使用真實 AI 金鑰。
+- 使用者選擇 Google Gemini Free tier，已在 Vercel Production 設定 `AI_API_KEY`、`AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai`、`AI_MODEL=gemini-3.5-flash-lite` 並重新部署。帳號頁當時顯示此模型 RPM 15、TPM 250K；每日限制與後續額度以帳號頁為準，不能當永久無限制使用。免費服務內容可能供改善 Google 產品，避免傳送敏感內容。本站不傳一般私人筆記與到訪心得給 AI。
+- 使用者希望先使用免費額度，未授權開通付費服務。日後可更換上述三個變數切回 OpenAI 相容 API；ChatGPT 訂閱不包含 API 費用。金鑰直接留在 Vercel，不貼到對話或 Codex。
 - 沒有 AI 時不發送資料，手動功能可繼續。社群網站可能限制讀取，需補文字／截圖，不承諾所有 IG、Threads、影片都能解析。
 - `NEXT_PUBLIC_MAP_TILE_URL`、`NEXT_PUBLIC_MAP_ATTRIBUTION` 可更換底圖。OSM 公共底圖僅供少量互動開發驗證；上線前閱讀最新政策，保留署名與 Referer，不預抓或離線下載。較大量需求需比較供應商額度與費用。
 - 目前沒有地理編碼服務，座標由人工確認。Maps 按鈕是一般外連，不使用付費 Places API 或儲存其專有資料。
