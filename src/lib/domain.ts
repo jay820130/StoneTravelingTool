@@ -107,7 +107,12 @@ export function mapsUrl(
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 }
 // General Google hosts must stay within /maps; add regional hosts explicitly.
-const googleMapsPageHosts = new Set(["www.google.com", "google.com", "www.google.com.tw"]);
+const googleMapsPageHosts = new Set([
+  "www.google.com",
+  "google.com",
+  "www.google.com.tw",
+  "google.com.tw",
+]);
 export function isMapsSourceHost(host: string) {
   const hostname = host.toLowerCase();
   return (
@@ -144,6 +149,18 @@ export function allowedSourceHost(host: string) {
       "www.threads.com",
     ].includes(host.toLowerCase())
   );
+}
+/** A name explicitly present in the shared URL, never inferred from coordinates or IDs. */
+export function mapsPlaceName(url: URL) {
+  if (!isMapsSourceHost(url.hostname)) return "";
+  const segment = /^\/maps\/place\/([^/]+)/.exec(url.pathname)?.[1];
+  if (!segment) return "";
+  try {
+    const name = decodeURIComponent(segment.replace(/\+/g, " ")).trim();
+    return name.length <= 200 && !/^(@|data=)/i.test(name) ? name : "";
+  } catch {
+    return "";
+  }
 }
 export function stars(rating: number | null) {
   return rating === null ? "尚未評分" : "★".repeat(rating) + "☆".repeat(5 - rating);

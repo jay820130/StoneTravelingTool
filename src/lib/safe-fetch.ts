@@ -2,7 +2,7 @@ import { lookup } from "node:dns/promises";
 import { request } from "node:https";
 import { StringDecoder } from "node:string_decoder";
 import ipaddr from "ipaddr.js";
-import { isMapsSourceHost, sourceUrl } from "./domain";
+import { isMapsSourceHost, mapsPlaceName, sourceUrl } from "./domain";
 import { SourcePage } from "./source-page";
 export { htmlText } from "./source-page";
 
@@ -66,6 +66,7 @@ export async function fetchSourceText(input: string): Promise<string> {
     const time = deadline - Date.now();
     if (time <= 0) throw new SourceFetchError("timeout", true);
     const maps = isMapsSourceHost(url.hostname);
+    const linkName = mapsPlaceName(url);
     const result = await new Promise<{ status: number; location?: string; text: string }>(
       (resolve, reject) => {
         let settled = false;
@@ -116,6 +117,10 @@ export async function fetchSourceText(input: string): Promise<string> {
             }
             const isHtml = /^text\/html\b/i.test(type);
             const page = new SourcePage();
+            const pageText = () =>
+              maps && linkName && !page.hasPlacePreview
+                ? `Google Maps 分享連結的地點名稱：${linkName}\n連結未提供可確認的國家、城市或地址，請留空。`
+                : page.text;
             const decoder = new StringDecoder("utf8");
             let plain = "";
             let size = 0;
@@ -130,14 +135,14 @@ export async function fetchSourceText(input: string): Promise<string> {
               if (isHtml) page.write(text);
               else plain = (plain + text).slice(0, 20000);
               // Read the complete Maps preview, not the subsequent large JS application.
-              if (maps && isHtml && page.headComplete && page.hasPlacePreview)
-                finish({ status, text: page.text });
+              if (maps && isHtml && page.headComplete && (page.hasPlacePreview || linkName))
+                finish({ status, text: pageText() });
             });
             res.on("end", () => {
               if (settled) return;
               if (isHtml) page.end(decoder.end());
               else plain = (plain + decoder.end()).slice(0, 20000);
-              finish({ status, text: isHtml ? page.text : plain.trim() });
+              finish({ status, text: isHtml ? pageText() : plain.trim() });
             });
             res.on("error", () => finish(undefined, new SourceFetchError("network", true)));
             res.on("aborted", () => finish(undefined, new SourceFetchError("network", true)));

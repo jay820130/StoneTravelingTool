@@ -3,6 +3,7 @@ import {
   emptyFilters,
   filterPlaces,
   mapsUrl,
+  mapsPlaceName,
   sourceUrl,
   placeSchema,
   visitSchema,
@@ -65,6 +66,25 @@ describe("real filtering and source validation", () => {
       original: raw,
       canonical: "https://www.google.com.tw/maps/place/Fictional+Cafe",
     });
+  });
+  it("also accepts the Taiwan Maps hostname without www", () => {
+    const url = "https://google.com.tw/maps/place/Fictional+Cafe";
+    expect(sourceUrl(url).original).toBe(url);
+    expect(() => sourceUrl("https://google.com.tw/maps-redirect/test")).toThrow();
+  });
+  it("decodes an explicit URL name without treating coordinates or IDs as a place", () => {
+    expect(
+      mapsPlaceName(new URL("https://www.google.com.tw/maps/place/%E6%B8%AC%E8%A9%A6+Cafe%2B")),
+    ).toBe("測試 Cafe+");
+    for (const path of [
+      "/maps/place//data=test",
+      "/maps/place/@25,121",
+      "/maps/place/data=test",
+      "/maps/place/%E6",
+      "/maps?cid=123",
+    ])
+      expect(mapsPlaceName(new URL(`https://www.google.com.tw${path}`))).toBe("");
+    expect(mapsPlaceName(new URL("https://example.com/maps/place/Fake"))).toBe("");
   });
   it.each([
     "http://instagram.com/x",

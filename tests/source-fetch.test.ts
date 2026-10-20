@@ -107,6 +107,24 @@ describe("public sharing previews", () => {
 });
 
 describe("redirects, streaming and source-to-AI integration", () => {
+  it("uses only the URL name when a regional Maps page returns generic metadata", async () => {
+    replies.push(
+      {
+        status: 302,
+        location: "https://www.google.com.tw/maps/place/%E6%B8%AC%E8%A9%A6+Cafe%2B/@25,121",
+      },
+      {
+        chunks: [
+          Buffer.from('<head><meta itemprop="name" content="Google Maps"></head>'),
+          Buffer.alloc(2 * 1024 * 1024, "x"),
+        ],
+      },
+    );
+    const text = await fetchSourceText(shortUrl);
+    expect(text).toContain("地點名稱：測試 Cafe+");
+    expect(text).toContain("國家、城市或地址，請留空");
+    expect(text).not.toContain("25,121");
+  });
   it.each(["www.google.com", "www.google.com.tw"])(
     "reads a short link's %s preview before a large JS app, then sends the facts to AI",
     async (host) => {
