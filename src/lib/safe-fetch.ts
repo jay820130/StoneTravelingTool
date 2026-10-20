@@ -2,7 +2,7 @@ import { lookup } from "node:dns/promises";
 import { request } from "node:https";
 import { StringDecoder } from "node:string_decoder";
 import ipaddr from "ipaddr.js";
-import { sourceUrl } from "./domain";
+import { isMapsSourceHost, sourceUrl } from "./domain";
 import { SourcePage } from "./source-page";
 export { htmlText } from "./source-page";
 
@@ -65,9 +65,7 @@ export async function fetchSourceText(input: string): Promise<string> {
     const address = addresses.find((a) => a.family === 4) ?? addresses[0];
     const time = deadline - Date.now();
     if (time <= 0) throw new SourceFetchError("timeout", true);
-    const maps = ["maps.app.goo.gl", "maps.google.com", "www.google.com", "google.com"].includes(
-      url.hostname,
-    );
+    const maps = isMapsSourceHost(url.hostname);
     const result = await new Promise<{ status: number; location?: string; text: string }>(
       (resolve, reject) => {
         let settled = false;

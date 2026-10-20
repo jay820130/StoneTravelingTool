@@ -106,6 +106,16 @@ export function mapsUrl(
       : [place.name, place.address, place.city, place.country].filter(Boolean).join(" ");
   return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(q)}`;
 }
+// General Google hosts must stay within /maps; add regional hosts explicitly.
+const googleMapsPageHosts = new Set(["www.google.com", "google.com", "www.google.com.tw"]);
+export function isMapsSourceHost(host: string) {
+  const hostname = host.toLowerCase();
+  return (
+    googleMapsPageHosts.has(hostname) ||
+    hostname === "maps.app.goo.gl" ||
+    hostname === "maps.google.com"
+  );
+}
 export function sourceUrl(input: string): { original: string; canonical: string } {
   const original = z.string().trim().max(4000).url().parse(input);
   const u = new URL(original);
@@ -113,7 +123,7 @@ export function sourceUrl(input: string): { original: string; canonical: string 
     throw new Error("僅接受 HTTPS 網址");
   if (!allowedSourceHost(u.hostname))
     throw new Error("請貼上 Instagram、Threads 或 Google Maps 連結");
-  if (["www.google.com", "google.com"].includes(u.hostname) && !u.pathname.startsWith("/maps"))
+  if (googleMapsPageHosts.has(u.hostname) && !/^\/maps(?:\/|$)/.test(u.pathname))
     throw new Error("請使用 Google Maps 連結");
   u.hash = "";
   for (const key of [...u.searchParams.keys()])
@@ -123,18 +133,17 @@ export function sourceUrl(input: string): { original: string; canonical: string 
   return { original, canonical: u.toString() };
 }
 export function allowedSourceHost(host: string) {
-  return [
-    "instagram.com",
-    "www.instagram.com",
-    "threads.net",
-    "www.threads.net",
-    "threads.com",
-    "www.threads.com",
-    "maps.app.goo.gl",
-    "maps.google.com",
-    "www.google.com",
-    "google.com",
-  ].includes(host.toLowerCase());
+  return (
+    isMapsSourceHost(host) ||
+    [
+      "instagram.com",
+      "www.instagram.com",
+      "threads.net",
+      "www.threads.net",
+      "threads.com",
+      "www.threads.com",
+    ].includes(host.toLowerCase())
+  );
 }
 export function stars(rating: number | null) {
   return rating === null ? "尚未評分" : "★".repeat(rating) + "☆".repeat(5 - rating);

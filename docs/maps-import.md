@@ -1,6 +1,23 @@
 # Maps 分享連結：修正與驗證紀錄
 
-2026-10-19。這次修正尚未部署至正式 `main`，也尚未證明使用者的原始短連結能自動取得店名及地址。補上文字後 Gemini 能產生候選店家，不能替代連結匯入的驗收。
+更新：2026-10-20。修正接續 `codex/stone-traveling-tool` 的 `6a01b53`，尚未部署至正式 `main`，也尚未證明使用者的原始短連結能自動取得店名及地址。補上文字後 Gemini 能產生候選店家，不能替代連結匯入的驗收。
+
+## 2026-10-20 接續結果
+
+- 已以使用者貼出的原始短連結實測；`maps.app.goo.gl` 回傳 **HTTP 302**，跳到 **`www.google.com.tw/maps/place/…`**。使用與應用程式相同的 User-Agent、Accept、Accept-Encoding、Accept-Language 再讀一次，亦跳到相同主機。私人短碼、完整跳轉網址與實際頁面不寫入 Git 或 fixture。
+- 本次環境已帶入先前發布的 Maps 網域，但缺少 `www.google.com.tw`。沿原始跳轉讀取時，第二站仍收到代理 **CONNECT 403**，不是 Google 頁面的 HTTP 403。環境狀態工具的政策狀態仍為 `unknown`，不能只憑設定清單宣稱全部已生效；實際短連結和官方文件已可通過代理。
+- 找到另一個可獨立重現的程式缺口：`sourceUrl` 會拒絕 `www.google.com.tw`，因此只調整環境也不足以完成匯入。現已精確允許此主機，並共用 Maps 主機判斷，確保臺灣頁面同樣在取得完整分享預覽後停止下載。一般 Google 主機僅允許 `/maps` 或 `/maps/…`，不接受 `/maps-redirect` 等相似前綴；逐跳 HTTPS、憑證／port、DNS 與固定 IP 的防護保留。
+- 回歸測試先在舊實作重現臺灣跳轉／來源拒絕及路徑邊界問題，修正後相關 60 項通過。使用明確虛構資料測試臺灣短鏈跳轉 → 預覽 → 模擬 AI 候選、提早停止大型頁面、原網址保存、私人 IP 與不安全跳轉。真實 Gemini、正式 worker 與資料保存尚未驗證。
+- 最終檢查：`npm run typecheck`、`npm run lint`、`npm test`（**106 項**）、`npm run build` 全部通過。本次未改動資料庫或帳號設定，未重跑完整本機瀏覽器 E2E。
+
+## 官方文件查閱
+
+2026-10-20 經既有 HTTPS proxy、保留 TLS 驗證取得以下官方文件，均為 HTTP 200：
+
+- [Google Maps 額外條款](https://www.google.com/help/terms_maps/)（頁面標示最後修改 2026-01-27）：限制內容複製（除另有許可或適用法律允許）、大量下載／建立批次資料，以及建立替代或實質相似服務的地圖相關資料集。不能因少量個人使用或可讀分享預覽就宣稱取得任意長期儲存授權。
+- [Maps URLs 官方文件](https://developers.google.com/maps/documentation/urls/get-started)：原 `/urls/guide` 導向此頁。Maps URLs 是免 API key 的 Google Maps 外連方式，使用 `api=1`；並非回傳店名／地址的資料匯入 API，也未承諾網頁預覽的格式或可讀性。
+
+此次只完成使用者指定來源的連線診斷與程式相容修正，未新增正式資料、開通 Places API、擷取座標繪製到其他底圖，或複製評論／照片。正式匯入仍需確認資料使用範圍，不能將上述外連文件視為內容授權。
 
 ## 已確認的程式缺口與變更
 
@@ -16,12 +33,12 @@
 
 Codex 原執行環境一度無法啟動；使用者發布環境後已恢復，checkout 與依賴保留。現在 HTTPS proxy 對 Maps 與官方文件主機回應 CONNECT 403，直接 DNS 查詢亦曾得到 EAI_AGAIN；這是 Codex 開發環境的限制，不能拿來推定 Vercel 上的實際錯誤原因。
 
-已在 Codex 環境草稿保留原有網域並新增 `maps.app.goo.gl`、`www.google.com`、`google.com`、`maps.google.com`、`developers.google.com`、`ai.google.dev`。尚待檢視、儲存／發布後重試確認；未繞過代理、停用 TLS 或放寬應用程式的 SSRF 防護。原始 Maps 網址尚待使用者貼成文字確認，不能將圖片轉錄當已驗證樣本；不得把該私人來源或實際頁面加入 Git／fixture。
+先前已在 Codex 環境草稿保留原有網域並新增 `maps.app.goo.gl`、`www.google.com`、`google.com`、`maps.google.com`、`developers.google.com`、`ai.google.dev`。使用者已發布，且本次已收到文字形式的原始連結；最新實測見上方。未繞過代理、停用 TLS 或放寬應用程式的 SSRF 防護；不得把私人來源或實際頁面加入 Git／fixture。
 
 ## 接下來的必要驗證
 
-1. 網域設定生效後，以完全相同的分享連結確認跳轉、HTTP 狀態及公開分享預覽。只在本機臨時檔保存必要診斷，不記錄到正式日誌或 Git。
-2. 查閱 [Google Maps 額外條款](https://www.google.com/help/terms_maps/) 與 [Maps URLs 官方文件](https://developers.google.com/maps/documentation/urls/guide)，確認個別分享連結資料的可用範圍；這兩頁目前也受同一連線限制。未開通 Places API、不擷取 Google 座標繪製到其他底圖、不複製評論或照片。
+1. 在同一 Codex 環境精確新增 `www.google.com.tw` 並發布後，以完全相同的分享連結確認完整跳轉、最終 HTTP 狀態及公開分享預覽。原始回應只存在 `/workspace/work/maps-import/` 臨時檔，不記錄到正式日誌或 Git。現有環境工具只能讀取政策，不能代為發布；不要改寫跳轉主機來繞過代理拒絕，也不要重做帳號設定。
+2. 官方文件已取得，結論見上方；資料使用範圍與真實預覽仍需確認。Codex 使用代理的連線診斷與 Vercel 的 DNS／固定 IP 讀取是不同路徑，不能把 curl 成功等同正式 worker 或 Gemini 匯入成功。
 3. 確認實際資料可讀及適用範圍後，再推進正式部署與使用者驗收。遇到網站實際拒絕或缺少資訊時如實回報，不能宣稱所有 Maps、IG 或 Threads 連結都可解析。
 4. 使用者已經補過文字的來源會優先解析補充文字，不能靠重試這筆資料假稱自動讀取成功。驗收須直接檢查原網址讀取結果，或使用尚未收藏的新 Maps 連結；不要清除既有補充內容、筆記或收藏。
 5. 自動產生候選店家後仍需使用者核對並確認新增；正式重新整理／登出再登入的資料保存驗證仍待完成。

@@ -1,6 +1,6 @@
 # 實作與驗證進度
 
-更新：2026-10-19。本專案已從 README／需求文件初始化為可使用真實本機 Supabase 的應用程式；使用者已提供 **Vercel 首次部署成功畫面**，正式網址為 [stone-traveling-tool.vercel.app](https://stone-traveling-tool.vercel.app/)，並回報正式帳號已成功登入；正式資料保存仍待驗證。需求原文未修改。程式沒有假登入，也不以瀏覽器儲存取代正式資料庫。
+更新：2026-10-20。本專案已從 README／需求文件初始化為可使用真實本機 Supabase 的應用程式；使用者已提供 **Vercel 首次部署成功畫面**，正式網址為 [stone-traveling-tool.vercel.app](https://stone-traveling-tool.vercel.app/)，並回報正式帳號已成功登入；正式資料保存仍待驗證。需求原文未修改。程式沒有假登入，也不以瀏覽器儲存取代正式資料庫。
 
 ## 已實作
 
@@ -28,7 +28,7 @@
 ## 自動驗證
 
 - `npm run typecheck`、`npm run lint`：通過。
-- `npm test`：94 項通過；包含 PostgreSQL migrations／RLS、交易、重試與復原、人工資料保留、解析失敗、SSRF 驗證、匯出及首次初始化。先前新增 12 項登入 API 回歸測試，確認設定／連線錯誤不誤報帳密錯誤、未驗證 Email、未受邀帳號拒絕、成員資格查詢失敗與原始錯誤內容不外洩；本次另新增 35 項來源擷取／worker 測試，涵蓋分享預覽、UTF-8 串流、短網址跳轉、下載限制、SSRF、暫時錯誤重試與私人原因不傳給 AI。型別、Lint 與正式建置亦通過。
+- `npm test`：106 項通過；包含 PostgreSQL migrations／RLS、交易、重試與復原、人工資料保留、解析失敗、SSRF 驗證、匯出及首次初始化。先前新增 12 項登入 API 回歸測試及 35 項來源擷取／worker 測試；2026-10-20 再新增 12 項，涵蓋 `www.google.com.tw` 分享跳轉、Maps 預覽提早停止、原網址保存、路徑邊界及逐跳安全檢查。型別、Lint 與正式建置結果見 Maps 匯入紀錄。
 - `supabase/setup/first-time.sql`：新增 5 項 PGlite 測試，驗證自動 RLS 啟用且沒有預設 Data API table grants 時仍可初始化、單一帳號授權、拒絕零／多帳號、重複執行保留原資料，以及中途失敗全數回滾。此測試使用平台 schema fixture，尚未代替使用者正式 Supabase 的實際執行驗證。
 - `npm run test:e2e`：5 個流程全部通過（28.5 秒），包含桌面、手機與同一頁面登出後切換帳號的隔離回歸測試。
 - 登入錯誤分類修正後，另重跑與此次變更相關的「登入、保存店家／兩次到訪與餐點、重新登入保留」流程，1 項通過（14.4 秒）；使用獨立本機 Supabase 測試帳號，未操作正式帳號。
@@ -43,7 +43,7 @@
 
 1. 使用者已於 2026-10-18 完成 Supabase 建立、私人登入設定、個人 Auth 帳號及首次初始化；SQL Editor 結果截圖確認 1 個受邀帳號、10 張啟用 RLS 的 public 資料表、私人 screenshots bucket。Project URL 為 `https://cwkaosndndbzhtppvmat.supabase.co`，使用者已回報網站正式登入成功。Codex 曾對此主機的 HTTPS CONNECT 收到 403，已加入環境草稿允許清單，但尚未重試直接呼叫該主機；這與網站伺服器到 Supabase 的連線是不同路徑。
 2. 使用者已建立 Vercel Hobby 帳號並完成首次部署，正式網址 `https://stone-traveling-tool.vercel.app/`，Site URL 設定截圖正確。Codex 起初的 CONNECT 403 在後續重試已消失；HTTP 已驗證首頁與匿名 session 為 200、私人資料與 worker 拒絕匿名、登入 API 的 Origin 與空輸入驗證生效。使用者曾遇到帳密錯誤；程式已修正 Auth 錯誤分類，提交 `20afe6709eb76e8d92978d1d191e39637e9d73a4` 的 Vercel 狀態為部署成功。使用者確認帳號存在且已驗證，之後回報「登進去了」，正式登入已獲使用者確認；先前失敗的確切原因未獨立核實。下一步請使用者手動新增真實店家，確認重新整理與重新登入後仍保留。正式資料完整保存仍待驗證；雲端排程與 Gemini 文字解析的後續進度見下一項。正式 Chromium 檢查受此環境代理憑證信任限制，未繞過 TLS。未開通付費服務或自訂網域。
-3. 使用者已完成 Gemini Free tier、Vercel 的 AI 與 CRON_SECRET 設定、Supabase Vault 兩筆設定及 Cron SQL。正式模型為 `gemini-3.5-flash-lite`，相容端點為 `https://generativelanguage.googleapis.com/v1beta/openai`。來源從等待解析轉為待補內容，補上文字後可產生摘要與候選店家；這只驗證背景排程和 Gemini 文字解析路徑。直接貼 Maps 短連結仍未通過驗收，使用者明確要求修正，不應要求逐店輸入名稱／地址。最新擷取修正與實測阻礙見 [Maps 匯入排錯](maps-import.md)。尚未將這次修正部署至正式 main；已要求可複製的原始連結及環境網域設定套用，無正式 AI 金鑰進入 Codex。候選確認、重新整理與重新登入後店家保留仍待使用者實測。
+3. 使用者已完成 Gemini Free tier、Vercel 的 AI 與 CRON_SECRET 設定、Supabase Vault 兩筆設定及 Cron SQL。正式模型為 `gemini-3.5-flash-lite`，相容端點為 `https://generativelanguage.googleapis.com/v1beta/openai`。來源從等待解析轉為待補內容，補上文字後可產生摘要與候選店家；這只驗證背景排程和 Gemini 文字解析路徑。直接貼 Maps 短連結仍未通過驗收，使用者明確要求修正，不應要求逐店輸入名稱／地址。2026-10-20 已收到原始連結，實測短連結 302 跳到 `www.google.com.tw`：環境代理在第二站回覆 CONNECT 403，且程式也漏列此主機。程式已補上精確允許與共用 Maps 預覽判斷，環境仍待新增並發布這個主機；詳見 [Maps 匯入排錯](maps-import.md)。尚未將這次修正部署至正式 main，無正式 AI 金鑰進入 Codex。候選確認、重新整理與重新登入後店家保留仍待使用者實測。
 4. 位置由人工確認座標，目前沒有自動地理編碼或地點搜尋服務。一般多點會自動縮放；大量重疊點尚無群聚，仍可用清單選店。
 5. OSM 只是可替換底圖的預設值；目前環境需允許圖磚主機，上線前確認政策與實際服務額度。PDF 未涵蓋的少數特殊字元顯示方框。
 6. [iPhone 文件](iphone.md) 已提供分享捷徑與逐來源實測步驟，尚未在各來源 App 或 Safari 實機驗證。

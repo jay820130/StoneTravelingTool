@@ -107,55 +107,58 @@ describe("public sharing previews", () => {
 });
 
 describe("redirects, streaming and source-to-AI integration", () => {
-  it("reads a short link's Maps preview before a large JS app, then sends the facts to AI", async () => {
-    replies.push(
-      { status: 302, location: "https://www.google.com/maps/place/Fictional+Test+Cafe" },
-      { chunks: [Buffer.from(preview), Buffer.alloc(2 * 1024 * 1024, "x")] },
-    );
-    const text = await fetchSourceText(shortUrl);
-    expect(text).toContain("測試咖啡 & Tea · 日本大阪市測試路1號");
-    expect(text).toContain("咖啡廳");
-    expect(text).not.toContain("xxxx");
-    expect(lookup).toHaveBeenCalledTimes(2);
-    expect(request).toHaveBeenLastCalledWith(
-      expect.objectContaining({
-        hostname: "8.8.8.8",
-        servername: "www.google.com",
-        headers: expect.objectContaining({ Host: "www.google.com" }),
-      }),
-      expect.any(Function),
-    );
-    vi.stubEnv("AI_API_KEY", "test-placeholder-only");
-    const ai = vi.fn().mockResolvedValue(
-      Response.json({
-        choices: [
-          {
-            message: {
-              content: JSON.stringify({
-                summary: "Fictional fixture",
-                candidates: [
-                  {
-                    name: "測試咖啡 & Tea",
-                    country: "日本",
-                    city: "大阪",
-                    address: "日本大阪市測試路1號",
-                    categories: ["咖啡廳"],
-                    dishes: [],
-                    summary: "Fixture only",
-                  },
-                ],
-              }),
+  it.each(["www.google.com", "www.google.com.tw"])(
+    "reads a short link's %s preview before a large JS app, then sends the facts to AI",
+    async (host) => {
+      replies.push(
+        { status: 302, location: `https://${host}/maps/place/Fictional+Test+Cafe` },
+        { chunks: [Buffer.from(preview), Buffer.alloc(2 * 1024 * 1024, "x")] },
+      );
+      const text = await fetchSourceText(shortUrl);
+      expect(text).toContain("測試咖啡 & Tea · 日本大阪市測試路1號");
+      expect(text).toContain("咖啡廳");
+      expect(text).not.toContain("xxxx");
+      expect(lookup).toHaveBeenCalledTimes(2);
+      expect(request).toHaveBeenLastCalledWith(
+        expect.objectContaining({
+          hostname: "8.8.8.8",
+          servername: host,
+          headers: expect.objectContaining({ Host: host }),
+        }),
+        expect.any(Function),
+      );
+      vi.stubEnv("AI_API_KEY", "test-placeholder-only");
+      const ai = vi.fn().mockResolvedValue(
+        Response.json({
+          choices: [
+            {
+              message: {
+                content: JSON.stringify({
+                  summary: "Fictional fixture",
+                  candidates: [
+                    {
+                      name: "測試咖啡 & Tea",
+                      country: "日本",
+                      city: "大阪",
+                      address: "日本大阪市測試路1號",
+                      categories: ["咖啡廳"],
+                      dishes: [],
+                      summary: "Fixture only",
+                    },
+                  ],
+                }),
+              },
             },
-          },
-        ],
-      }),
-    );
-    const result = await extractPlaces(text, [], ai);
-    expect(result.status).toBe("parsed");
-    expect(result.candidates[0].address).toBe("日本大阪市測試路1號");
-    const body = JSON.parse(ai.mock.calls[0][1].body);
-    expect(body.messages[1].content[0].text).toContain("測試路1號");
-  });
+          ],
+        }),
+      );
+      const result = await extractPlaces(text, [], ai);
+      expect(result.status).toBe("parsed");
+      expect(result.candidates[0].address).toBe("日本大阪市測試路1號");
+      const body = JSON.parse(ai.mock.calls[0][1].body);
+      expect(body.messages[1].content[0].text).toContain("測試路1號");
+    },
+  );
   it("decodes a Chinese preview split across UTF-8 byte boundaries", async () => {
     const raw = Buffer.from(preview);
     replies.push({ chunks: Array.from(raw, (byte) => Buffer.from([byte])) });
@@ -212,6 +215,11 @@ describe("redirects, streaming and source-to-AI integration", () => {
     "https://user:password@www.google.com/maps/test",
     "https://www.google.com:444/maps/test",
     "https://127.0.0.1/maps/test",
+    "https://www.google.com.tw/url?q=private",
+    "https://www.google.com.tw/maps-redirect/test",
+    "https://www.google.com.tw.evil.test/maps/test",
+    "https://user:password@www.google.com.tw/maps/test",
+    "https://www.google.com.tw:444/maps/test",
   ])("rejects unsafe redirect %s before DNS or another request", async (location) => {
     replies.push({ status: 302, location });
     await expect(fetchSourceText(shortUrl)).rejects.toMatchObject({
@@ -221,14 +229,17 @@ describe("redirects, streaming and source-to-AI integration", () => {
     expect(lookup).toHaveBeenCalledTimes(1);
     expect(request).toHaveBeenCalledTimes(1);
   });
-  it("rejects a private address at a later redirect", async () => {
-    lookupAll
-      .mockResolvedValueOnce([{ address: "8.8.8.8", family: 4 }])
-      .mockResolvedValueOnce([{ address: "10.0.0.1", family: 4 }]);
-    replies.push({ status: 302, location: "https://www.google.com/maps/place/Test" });
-    await expect(fetchSourceText(shortUrl)).rejects.toMatchObject({ kind: "address" });
-    expect(request).toHaveBeenCalledTimes(1);
-  });
+  it.each(["www.google.com", "www.google.com.tw"])(
+    "rejects a private address at a later redirect to %s",
+    async (host) => {
+      lookupAll
+        .mockResolvedValueOnce([{ address: "8.8.8.8", family: 4 }])
+        .mockResolvedValueOnce([{ address: "10.0.0.1", family: 4 }]);
+      replies.push({ status: 302, location: `https://${host}/maps/place/Test` });
+      await expect(fetchSourceText(shortUrl)).rejects.toMatchObject({ kind: "address" });
+      expect(request).toHaveBeenCalledTimes(1);
+    },
+  );
   it("rejects a DNS set mixing public and private addresses", async () => {
     lookupAll.mockResolvedValue([
       { address: "8.8.8.8", family: 4 },

@@ -59,6 +59,13 @@ describe("real filtering and source validation", () => {
     expect(sourceUrl(raw).original).toBe(raw);
     expect(sourceUrl(raw).canonical).toBe("https://www.instagram.com/p/abc/");
   });
+  it("accepts Taiwan Maps links and preserves the original URL", () => {
+    const raw = "https://www.google.com.tw/maps/place/Fictional+Cafe?utm_source=share";
+    expect(sourceUrl(raw)).toEqual({
+      original: raw,
+      canonical: "https://www.google.com.tw/maps/place/Fictional+Cafe",
+    });
+  });
   it.each([
     "http://instagram.com/x",
     "https://instagram.com.evil.test/x",
@@ -66,6 +73,10 @@ describe("real filtering and source validation", () => {
     "https://user:pw@instagram.com/p/a",
     "https://www.google.com/search?q=food",
     "https://instagram.com:444/x",
+    "https://www.google.com/maps-redirect/test",
+    "https://www.google.com.tw/search?q=food",
+    "https://www.google.com.tw/maps-redirect/test",
+    "https://www.google.com.tw.evil.test/maps/test",
   ])("rejects unsupported/unsafe URL %s", (u) => expect(() => sourceUrl(u)).toThrow());
   it.each([
     "127.0.0.1",
