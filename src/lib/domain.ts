@@ -11,6 +11,7 @@ export const placeSchema = z
     address: z.string().trim().max(1000).default(""),
     latitude: z.number().min(-90).max(90).nullable().default(null),
     longitude: z.number().min(-180).max(180).nullable().default(null),
+    location_source: z.string().max(4000).default(""),
     categories: z.array(short.min(1)).max(20).default([]),
     tags: z.array(short.min(1)).max(30).default([]),
     rating: ratingSchema.default(null),
@@ -35,6 +36,8 @@ export const visitSchema = z.object({
 });
 export const candidateSchema = z.object({
   name: short.min(1),
+  branch: short.default(""),
+  location_clues: z.string().max(1000).default(""),
   country: short,
   city: short,
   address: z.string().max(1000),
@@ -113,8 +116,7 @@ export function sourceUrl(input: string): { original: string; canonical: string 
     throw new Error("僅接受 HTTPS 網址");
   if (!allowedSourceHost(u.hostname))
     throw new Error("請貼上 Instagram、Threads 或 Google Maps 連結");
-  if (["www.google.com", "google.com"].includes(u.hostname) && !u.pathname.startsWith("/maps"))
-    throw new Error("請使用 Google Maps 連結");
+  if (isMapsHost(u.hostname) && !validMapsPath(u)) throw new Error("請使用 Google Maps 連結");
   u.hash = "";
   for (const key of [...u.searchParams.keys()])
     if (key.startsWith("utm_") || ["igsh", "igshid", "fbclid"].includes(key))
@@ -123,18 +125,47 @@ export function sourceUrl(input: string): { original: string; canonical: string 
   return { original, canonical: u.toString() };
 }
 export function allowedSourceHost(host: string) {
-  return [
-    "instagram.com",
-    "www.instagram.com",
-    "threads.net",
-    "www.threads.net",
-    "threads.com",
-    "www.threads.com",
-    "maps.app.goo.gl",
-    "maps.google.com",
-    "www.google.com",
-    "google.com",
-  ].includes(host.toLowerCase());
+  return (
+    isMapsHost(host) ||
+    [
+      "instagram.com",
+      "www.instagram.com",
+      "threads.net",
+      "www.threads.net",
+      "threads.com",
+      "www.threads.com",
+    ].includes(host.toLowerCase())
+  );
+}
+const mapsHosts = new Set([
+  "maps.app.goo.gl",
+  "maps.google.com",
+  "goo.gl",
+  ...[
+    "com",
+    "com.tw",
+    "co.jp",
+    "co.uk",
+    "com.hk",
+    "com.sg",
+    "com.au",
+    "ca",
+    "fr",
+    "de",
+    "it",
+    "es",
+    "co.kr",
+  ].flatMap((suffix) => [`google.${suffix}`, `www.google.${suffix}`]),
+]);
+export function isMapsHost(host: string) {
+  return mapsHosts.has(host.toLowerCase());
+}
+function validMapsPath(u: URL) {
+  if (u.hostname === "maps.app.goo.gl") return /^\/[^/]+\/?$/.test(u.pathname);
+  if (u.hostname === "goo.gl") return /^\/maps\/[^/]+\/?$/.test(u.pathname);
+  if (u.hostname === "maps.google.com")
+    return u.pathname === "/" || /^\/maps(?:\/|$)/.test(u.pathname);
+  return /^\/maps(?:\/|$)/.test(u.pathname);
 }
 export function stars(rating: number | null) {
   return rating === null ? "尚未評分" : "★".repeat(rating) + "☆".repeat(5 - rating);

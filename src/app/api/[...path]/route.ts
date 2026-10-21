@@ -1,12 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { randomUUID } from "node:crypto";
+import { createHash } from "node:crypto";
 import { configured, serverClient } from "@/lib/supabase/server";
 import { loginFailure } from "@/lib/supabase/login-error";
 import { loadLibrary } from "@/lib/library";
 import { normalizeRegion, placeSchema, sourceUrl, visitSchema } from "@/lib/domain";
 import { exportLibrary, exportSchema } from "@/lib/export";
 
+import { IMAGE_MIMES, MAX_IMAGE_BYTES, imageMime } from "@/lib/images";
+import { geocode, GeocodingError } from "@/lib/geocoding";
+
+export const maxDuration = 30;
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 class ApiError extends Error {
@@ -129,73 +133,86 @@ async function handle(req: NextRequest, { params }: { params: Promise<{ path: st
         .single();
       check(error);
       if (!data) throw new ApiError(404, "找不到附件");
-      const download = await db.storage.from("screenshots").download(data.path);
-      check(download.error);
-      return new NextResponse(download.data, {
-        headers: { "Cache-Control": "private, no-store", "Content-Type": download.data!.type },
+      const signed = await db.storage.from("screenshots").createSignedUrl(data.path, 60);
+      check(signed.error);
+      return new NextResponse(null, {
+        status: 303,
+        headers: {
+          Location: signed.data!.signedUrl,
+          "Cache-Control": "private, no-store",
+          "Referrer-Policy": "no-referrer",
+        },
       });
     }
     if (req.method === "POST") {
       const quota = await db.rpc("consume_quota");
       check(quota.error);
       if (!quota.data) throw new ApiError(429, "本小時操作次數已達上限，請稍後再試");
-      if (route === "attachments") {
-        const form = await new Response(await boundedBody(req, 6 * 1024 * 1024), {
-          headers: { "Content-Type": req.headers.get("content-type") ?? "" },
-        }).formData();
-        const source = z.uuid().parse(form.get("source_id"));
-        const file = form.get("file");
-        if (
-          !(file instanceof File) ||
-          file.size > 5 * 1024 * 1024 ||
-          !["image/png", "image/jpeg", "image/webp"].includes(file.type)
-        )
-          throw new ApiError(400, "請上傳 5 MB 以內的 PNG、JPEG 或 WebP 截圖");
-        const buffer = Buffer.from(await file.arrayBuffer());
-        const valid =
-          file.type === "image/png"
-            ? buffer.subarray(0, 8).equals(Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]))
-            : file.type === "image/jpeg"
-              ? buffer[0] === 255 && buffer[1] === 216 && buffer[2] === 255
-              : buffer.toString("ascii", 0, 4) === "RIFF" &&
-                buffer.toString("ascii", 8, 12) === "WEBP";
-        if (!valid) throw new ApiError(400, "圖片格式與內容不符");
-        const existing = await db
-          .from("sources")
-          .select("content_text,reason")
-          .eq("id", source)
-          .single();
-        check(existing.error);
-        const count = await db
-          .from("attachments")
-          .select("id", { count: "exact", head: true })
-          .eq("source_id", source);
-        check(count.error);
-        if ((count.count ?? 0) >= 3) throw new ApiError(400, "每份來源最多三張截圖");
-        const filePath = `${user.id}/${source}/${randomUUID()}`;
-        const uploaded = await db.storage
+      if (route === "attachments")
+        throw new ApiError(400, "請重新整理頁面，使用新的圖片上傳流程。");
+      const body = await readJson(req);
+      if (route === "attachments/prepare") {
+        const input = z
+          .object({
+            source_id: z.uuid(),
+            mime: z.enum(IMAGE_MIMES),
+            size: z.number().int().min(1).max(MAX_IMAGE_BYTES),
+            attachment_id: z.uuid().optional(),
+          })
+          .parse(body);
+        const reservation = input.attachment_id
+          ? await db
+              .from("attachments")
+              .select("*")
+              .eq("id", input.attachment_id)
+              .eq("source_id", input.source_id)
+              .single()
+          : await db.rpc("reserve_attachment", {
+              source: input.source_id,
+              mime: input.mime,
+              bytes: input.size,
+            });
+        check(reservation.error);
+        const row = reservation.data;
+        if (!row || row.mime_type !== input.mime || row.size_bytes !== input.size)
+          throw new ApiError(400, "附件資料不符");
+        const signed = await db.storage
           .from("screenshots")
-          .upload(filePath, buffer, { contentType: file.type, upsert: false });
-        check(uploaded.error);
-        const row = await db
-          .from("attachments")
-          .insert({ owner_id: user.id, source_id: source, path: filePath, mime_type: file.type });
-        if (row.error) {
-          await db.storage.from("screenshots").remove([filePath]);
-          check(row.error);
-        }
+          .createSignedUploadUrl(row.path, { upsert: false });
+        check(signed.error);
+        return json({ id: row.id, url: signed.data!.signedUrl });
+      }
+      if (route === "attachments/complete") {
+        const { id } = z.object({ id: z.uuid() }).parse(body);
+        const row = await db.from("attachments").select("*").eq("id", id).single();
+        check(row.error);
+        if (row.data.state === "ready") return json({ ok: true, id });
+        const downloaded = await db.storage
+          .from("screenshots")
+          .download(row.data.path, {}, { signal: AbortSignal.timeout(12000) });
+        check(downloaded.error);
+        if (!downloaded.data) throw new ApiError(400, "圖片尚未上傳完成，請重試");
+        const bytes = Buffer.from(await downloaded.data.arrayBuffer());
+        if (
+          bytes.length !== row.data.size_bytes ||
+          bytes.length > MAX_IMAGE_BYTES ||
+          imageMime(bytes) !== row.data.mime_type
+        )
+          throw new ApiError(400, "圖片格式或大小不符，請刪除此附件後重新選圖");
         check(
           (
-            await db.rpc("requeue_source", {
-              source,
-              content: existing.data!.content_text,
-              why: existing.data!.reason,
-            })
+            await db
+              .from("attachments")
+              .update({ state: "ready", sha256: createHash("sha256").update(bytes).digest("hex") })
+              .eq("id", id)
           ).error,
         );
-        return json({ ok: true });
+        return json({ ok: true, id });
       }
-      const body = await readJson(req);
+      if (route === "geocode") {
+        const { query } = z.object({ query: z.string().trim().min(2).max(300) }).parse(body);
+        return json({ candidates: await geocode(user.id, query) });
+      }
       if (route === "candidates") {
         const input = z
           .object({
@@ -248,6 +265,12 @@ async function handle(req: NextRequest, { params }: { params: Promise<{ path: st
             original_url: url.original,
             canonical_url: url.canonical,
             reason,
+            content_text: z
+              .string()
+              .max(30000)
+              .parse(body.content_text ?? ""),
+            intake_pending: z.boolean().parse(body.defer_parse ?? false),
+            status: body.defer_parse ? "needs_input" : "pending",
           })
           .select()
           .single();
@@ -263,7 +286,7 @@ async function handle(req: NextRequest, { params }: { params: Promise<{ path: st
         check(error);
         return json({ source: data, duplicate: false }, 201);
       }
-      if (route === "sources/retry") {
+      if (route === "sources/retry" || route === "sources/intake") {
         const input = z
           .object({
             id: z.uuid(),
@@ -273,7 +296,7 @@ async function handle(req: NextRequest, { params }: { params: Promise<{ path: st
           .parse(body);
         check(
           (
-            await db.rpc("requeue_source", {
+            await db.rpc(route === "sources/intake" ? "save_source_draft" : "requeue_source", {
               source: input.id,
               content: input.content_text,
               why: input.reason,
@@ -334,9 +357,11 @@ async function handle(req: NextRequest, { params }: { params: Promise<{ path: st
         if (table === "sources" || table === "attachments") {
           const files = await db
             .from("attachments")
-            .select("path")
+            .select("path,source_id")
             .eq(table === "sources" ? "source_id" : "id", id);
           check(files.error);
+          if (table === "attachments" && files.data?.[0])
+            check((await db.rpc("begin_source_intake", { source: files.data[0].source_id })).error);
           if (files.data?.length)
             check(
               (await db.storage.from("screenshots").remove(files.data.map((f) => f.path))).error,
@@ -350,6 +375,7 @@ async function handle(req: NextRequest, { params }: { params: Promise<{ path: st
   } catch (error) {
     if (error instanceof z.ZodError)
       return json({ error: error.issues[0]?.message ?? "資料格式錯誤" }, 400);
+    if (error instanceof GeocodingError) return json({ error: error.message }, error.status);
     if (error instanceof ApiError) return json({ error: error.message }, error.status);
     // Never echo service responses, credentials or private content into logs.
     return json({ error: "操作未完成，請確認設定與網路後重試" }, 500);

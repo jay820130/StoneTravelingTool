@@ -9,6 +9,7 @@ export interface Place {
   address: string;
   latitude: number | null;
   longitude: number | null;
+  location_source?: string;
   categories: string[];
   tags: string[];
   rating: number | null;
@@ -17,6 +18,12 @@ export interface Place {
 }
 export interface Candidate {
   name: string;
+  branch?: string;
+  location_clues?: string;
+  latitude?: number | null;
+  longitude?: number | null;
+  coordinate_kind?: "place" | "viewport";
+  place_id?: string;
   country: string;
   city: string;
   address: string;
@@ -36,6 +43,8 @@ export interface Source {
   candidates: Candidate[];
   error: string;
   revision: number;
+  intake_pending?: boolean;
+  map_data?: MapsData;
   created_at: string;
 }
 export interface Visit {
@@ -61,6 +70,30 @@ export interface Attachment {
   source_id: string;
   path: string;
   mime_type: string;
+  state?: "pending" | "ready";
+  size_bytes?: number;
+  sha256?: string;
+}
+export interface MapsData {
+  final_url: string;
+  name: string;
+  latitude: number | null;
+  longitude: number | null;
+  coordinate_kind?: "place" | "viewport";
+  place_id: string;
+  cid: string;
+  feature_id: string;
+}
+export interface LocationCandidate {
+  id: string;
+  name: string;
+  address: string;
+  country: string;
+  city: string;
+  latitude: number;
+  longitude: number;
+  attribution: string;
+  provider: string;
 }
 export interface SourceLink {
   owner_id: string;

@@ -1,64 +1,43 @@
 import { Parser } from "htmlparser2";
-
-const TEXT_LIMIT = 20000;
-const hiddenTags = new Set(["script", "style", "noscript", "template", "svg"]);
-const blockTags = new Set([
-  "p",
-  "div",
-  "li",
-  "br",
-  "hr",
-  "h1",
-  "h2",
-  "h3",
-  "h4",
-  "section",
-  "article",
-  "tr",
-  "td",
+const clean = (s: string) => s.replace(/\s+/g, " ").trim();
+const keys = new Set([
+  "og:title",
+  "og:description",
+  "twitter:title",
+  "twitter:description",
+  "description",
 ]);
-const titleKeys = new Set(["og:title", "twitter:title", "name"]);
-const descriptionKeys = new Set(["og:description", "twitter:description", "description"]);
-const clean = (value: string) => value.replace(/\s+/g, " ").trim();
-
-/** Read public page text and sharing previews; never execute page scripts. */
+/** Only public sharing metadata. No scripts, page body, login, or browser execution. */
 export class SourcePage {
   private previews: string[] = [];
-  private body: string[] = [];
-  private bodyLength = 0;
+  private meta: Record<string, string> = {};
   private title = "";
   private inTitle = false;
   private hiddenDepth = 0;
   headComplete = false;
-  hasPlacePreview = false;
-
-  private appendBody(text: string) {
-    const part = text.slice(0, TEXT_LIMIT - this.bodyLength);
-    this.body.push(part);
-    this.bodyLength += part.length;
-  }
-
   private parser = new Parser({
     onopentag: (tag, attrs) => {
-      if (!this.hiddenDepth && (hiddenTags.has(tag) || blockTags.has(tag))) this.appendBody(" ");
-      if (this.hiddenDepth || hiddenTags.has(tag)) {
+      if (this.headComplete) return;
+      if (this.hiddenDepth || ["script", "style", "template", "noscript"].includes(tag)) {
         this.hiddenDepth++;
+        return;
+      }
+      if (tag === "body") {
+        this.headComplete = true;
         return;
       }
       if (tag === "title") this.inTitle = true;
       if (tag !== "meta") return;
-      const key = (attrs.property || attrs.name || attrs.itemprop || "").toLowerCase();
+      const key = (attrs.property || attrs.name || "").toLowerCase();
       const value = clean(attrs.content || "").slice(0, 8000);
-      if (!value || (!titleKeys.has(key) && !descriptionKeys.has(key))) return;
-      if (this.previews.length < 20 && !this.previews.includes(value)) this.previews.push(value);
-      if (titleKeys.has(key) && !/^google\s*(maps|地圖|地图|マップ)$/i.test(value))
-        this.hasPlacePreview = true;
+      if (keys.has(key) && value && this.previews.length < 20) {
+        this.meta[key] = value;
+        if (!this.previews.includes(value)) this.previews.push(value);
+      }
     },
     ontext: (text) => {
-      if (this.hiddenDepth) return;
-      if (this.inTitle) {
-        this.title += text.slice(0, 2000 - this.title.length);
-      } else if (this.bodyLength < TEXT_LIMIT) this.appendBody(text);
+      if (!this.headComplete && !this.hiddenDepth && this.inTitle)
+        this.title += text.slice(0, 300 - this.title.length);
     },
     onclosetag: (tag) => {
       if (this.hiddenDepth) {
@@ -67,10 +46,8 @@ export class SourcePage {
       }
       if (tag === "title") this.inTitle = false;
       if (tag === "head") this.headComplete = true;
-      if (blockTags.has(tag)) this.appendBody(" ");
     },
   });
-
   write(chunk: string) {
     this.parser.write(chunk);
   }
@@ -78,14 +55,17 @@ export class SourcePage {
     this.parser.end(chunk);
   }
   get text() {
-    return [
-      ...new Set([...this.previews, this.title, this.body.join("")].map(clean).filter(Boolean)),
-    ]
-      .join("\n")
-      .slice(0, TEXT_LIMIT);
+    return this.previews.join("\n").slice(0, 20000);
+  }
+  get metadata() {
+    return {
+      title: clean(this.title),
+      og_title: (this.meta["og:title"] || "").slice(0, 300),
+      og_description: (this.meta["og:description"] || "").slice(0, 600),
+      body_read: false,
+    };
   }
 }
-
 export function htmlText(html: string) {
   const page = new SourcePage();
   page.end(html);

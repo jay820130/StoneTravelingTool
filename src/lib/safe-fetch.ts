@@ -2,7 +2,7 @@ import { lookup } from "node:dns/promises";
 import { request } from "node:https";
 import { StringDecoder } from "node:string_decoder";
 import ipaddr from "ipaddr.js";
-import { sourceUrl } from "./domain";
+import { isMapsHost, sourceUrl } from "./domain";
 import { SourcePage } from "./source-page";
 export { htmlText } from "./source-page";
 
@@ -33,13 +33,31 @@ export function publicAddress(address: string) {
   return ipaddr.parse(address).range() === "unicast";
 }
 
-export async function fetchSourceText(input: string): Promise<string> {
+export interface FetchTrace {
+  hops: { url: string; status: number }[];
+  final_url: string;
+  metadata?: ReturnType<typeof readMetadata>;
+}
+function readMetadata(page: SourcePage) {
+  return page.metadata;
+}
+export async function fetchSourcePage(
+  input: string,
+  mode: "metadata" | "maps" = "metadata",
+): Promise<{ text: string; trace: FetchTrace }> {
   let url = new URL(sourceUrl(input).original);
   const deadline = Date.now() + 12000;
+  const trace: FetchTrace = { hops: [], final_url: url.toString() };
+  const originalMaps = isMapsHost(url.hostname);
   for (let redirects = 0; redirects <= 5; redirects++) {
     // Recheck scheme, credentials, port, hostname AND path after every redirect.
     try {
       sourceUrl(url.toString());
+      if (
+        isMapsHost(url.hostname) !== originalMaps ||
+        (mode === "maps" && !isMapsHost(url.hostname))
+      )
+        throw new Error("Cross-platform redirect");
     } catch {
       throw new SourceFetchError("redirect");
     }
@@ -65,9 +83,6 @@ export async function fetchSourceText(input: string): Promise<string> {
     const address = addresses.find((a) => a.family === 4) ?? addresses[0];
     const time = deadline - Date.now();
     if (time <= 0) throw new SourceFetchError("timeout", true);
-    const maps = ["maps.app.goo.gl", "maps.google.com", "www.google.com", "google.com"].includes(
-      url.hostname,
-    );
     const result = await new Promise<{ status: number; location?: string; text: string }>(
       (resolve, reject) => {
         let settled = false;
@@ -100,6 +115,8 @@ export async function fetchSourceText(input: string): Promise<string> {
           },
           (res) => {
             const status = res.statusCode ?? 0;
+            trace.hops.push({ url: url.toString(), status });
+            trace.final_url = url.toString();
             if ([301, 302, 303, 307, 308].includes(status) && res.headers.location) {
               finish({ status, location: res.headers.location, text: "" });
               return;
@@ -111,15 +128,17 @@ export async function fetchSourceText(input: string): Promise<string> {
               );
               return;
             }
+            if (mode === "maps") {
+              finish({ status, text: "" });
+              return;
+            }
             const type = res.headers["content-type"] ?? "";
-            if (!/^text\/(html|plain)\b/i.test(type)) {
+            if (!/^text\/html\b/i.test(type)) {
               finish(undefined, new SourceFetchError("type"));
               return;
             }
-            const isHtml = /^text\/html\b/i.test(type);
             const page = new SourcePage();
             const decoder = new StringDecoder("utf8");
-            let plain = "";
             let size = 0;
             res.on("data", (chunk: Buffer) => {
               if (settled) return;
@@ -129,17 +148,17 @@ export async function fetchSourceText(input: string): Promise<string> {
                 return;
               }
               const text = decoder.write(chunk);
-              if (isHtml) page.write(text);
-              else plain = (plain + text).slice(0, 20000);
-              // Read the complete Maps preview, not the subsequent large JS application.
-              if (maps && isHtml && page.headComplete && page.hasPlacePreview)
+              page.write(text);
+              if (page.headComplete) {
+                trace.metadata = page.metadata;
                 finish({ status, text: page.text });
+              }
             });
             res.on("end", () => {
               if (settled) return;
-              if (isHtml) page.end(decoder.end());
-              else plain = (plain + decoder.end()).slice(0, 20000);
-              finish({ status, text: isHtml ? page.text : plain.trim() });
+              page.end(decoder.end());
+              trace.metadata = page.metadata;
+              finish({ status, text: page.text });
             });
             res.on("error", () => finish(undefined, new SourceFetchError("network", true)));
             res.on("aborted", () => finish(undefined, new SourceFetchError("network", true)));
@@ -161,7 +180,11 @@ export async function fetchSourceText(input: string): Promise<string> {
       }
       continue;
     }
-    return result.text;
+    return { text: result.text, trace };
   }
   throw new SourceFetchError("redirect");
+}
+
+export async function fetchSourceText(input: string) {
+  return (await fetchSourcePage(input)).text;
 }
