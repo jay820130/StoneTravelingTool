@@ -44,7 +44,12 @@ export function PlaceForm({
   const text = (
     key: "name" | "country" | "city" | "address" | "latitude" | "longitude" | "tags" | "notes",
     value: string,
-  ) => setP({ ...p, [key]: value });
+  ) =>
+    setP({
+      ...p,
+      [key]: value,
+      ...(["latitude", "longitude"].includes(key) ? { location_source: "手動輸入" } : {}),
+    });
   return (
     <form
       className="form"

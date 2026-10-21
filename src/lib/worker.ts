@@ -39,6 +39,7 @@ export async function processOneJob(): Promise<{ processed: boolean; status?: st
     owner = "";
   const diagnostics: Record<string, unknown> = { strategy: "content-v2" };
   let maps = false;
+  let previousCandidates: Candidate[] = [];
   try {
     const { data: source, error } = await db
       .from("sources")
@@ -49,6 +50,7 @@ export async function processOneJob(): Promise<{ processed: boolean; status?: st
     if (source.revision !== job.revision || source.intake_pending)
       return { processed: true, status: "superseded" };
     owner = source.owner_id;
+    previousCandidates = source.candidates;
     await db
       .from("sources")
       .update({ status: "processing" })
@@ -85,7 +87,7 @@ export async function processOneJob(): Promise<{ processed: boolean; status?: st
     else {
       const images: { mime: string; data: string }[] = [];
       if (process.env.AI_API_KEY) {
-        const deadline = Date.now() + 20000;
+        const deadline = Date.now() + 16000;
         let bytes = 0;
         for (const f of files || []) {
           const remaining = deadline - Date.now();
@@ -149,6 +151,7 @@ export async function processOneJob(): Promise<{ processed: boolean; status?: st
       return previous ? { ...c, place_id: previous.place_id } : c;
     });
   } catch (error) {
+    if (error instanceof SourceFetchError && error.trace) diagnostics.fetch = error.trace;
     if (cacheToken)
       await db.rpc("finish_ai_extraction", { owner, hash, token: cacheToken, result: null });
     retry =
@@ -174,6 +177,7 @@ export async function processOneJob(): Promise<{ processed: boolean; status?: st
       retry_after: error instanceof AIError ? error.retryAfter : 0,
     };
   }
+  if (!result.candidates.length) result.candidates = previousCandidates.filter((c) => c.place_id);
   result.diagnostics = { ...diagnostics, ...result.diagnostics };
   const completed = await db.rpc("complete_import_job", {
     job_id: job.id,

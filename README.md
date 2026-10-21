@@ -2,7 +2,7 @@
 
 手機優先、繁體中文的私人店家收藏與旅行整理工具。使用 Next.js／TypeScript、Supabase PostgreSQL／Auth／Storage，原需求完整保留於 [codex_saved_places_prompt.md](codex_saved_places_prompt.md)。
 
-已實作收藏與來源、店家編輯、組合篩選、到訪與餐點、標籤管理、多來源關聯／合併、私人截圖、地圖、XLSX／PDF 分享，以及可替換 AI 的持久化解析佇列。正式 Supabase、AI 與部署仍需設定，尚未上線。最新驗證結果見 [進度紀錄](docs/progress.md)。
+已實作收藏與來源、店家編輯、組合篩選、到訪與餐點、標籤管理、多來源關聯／合併、私人截圖、地圖、XLSX／PDF 分享，以及可替換 AI 的持久化解析佇列。正式服務位於 [stone-traveling-tool.vercel.app](https://stone-traveling-tool.vercel.app/)。解析與圖片功能的第二階段發布、外部待驗證項目見 [第二階段報告](docs/phase2.md)。最新驗證結果見 [進度紀錄](docs/progress.md)。
 
 ## 本機開發
 
@@ -29,7 +29,7 @@ cd /workspace/StoneTravelingTool
 npm run worker
 ```
 
-沒設定 AI 時會顯示「待補內容」，手動收藏、編輯、評分與匯出仍可使用。沒有 Supabase 時網站顯示設定說明，不會假裝保存成功。
+沒設定 AI 時仍可用 Maps 網址規則解析；需要 AI 的來源會顯示「待補內容」，手動收藏、編輯、評分與匯出仍可使用。沒有 Supabase 時網站顯示設定說明，不會假裝保存成功。
 
 `npm run db:stop` 保留本機資料；網站與 worker 以 Ctrl+C 停止。`npm run db:reset -- --confirm-local-data-loss` **會刪除本機資料**，只適用於可丟棄測試庫，不是日常啟動步驟。Docker `vfs` 的磁碟問題見 [環境排錯](docs/environment.md)。
 
@@ -55,7 +55,7 @@ npm run test:e2e
 
 ## 日常操作
 
-1. 貼上 IG、Threads、Maps 網址，先確實保存，再另外解析；相同連結不重複建立。
+1. 貼上 IG、Threads、Maps 網址，可同時補文字並選多張截圖；先保存，再另外解析。Maps 以網址規則優先；社群讀不到就提示待補內容，相同連結不重複建立。
 2. 「待整理」可補文字、截圖、收藏原因，確認候選或手動連結店家。一份來源可對應多店。
 3. 組合國家、城市、類型、標籤、到訪狀態與店名搜尋。清單與地圖共用篩選；沒有座標的店家留在待補位置區。
 4. 店家、每次到訪、每個餐點的評分各自保存；刪除最後一次到訪後回到「想去」。

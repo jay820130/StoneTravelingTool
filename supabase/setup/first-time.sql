@@ -287,7 +287,7 @@ end $$;
 
 insert into supabase_migrations.schema_migrations(version,name) values ('202610180004','job_recovery');
 
--- Migration: 20261021002018_import_content_pipeline.sql
+-- Migration: 20261021003629_import_content_pipeline.sql
 -- Additive import changes; original sources, places and visit history are retained.
 alter table public.sources add column intake_pending boolean not null default false,
   add column map_data jsonb not null default '{}', add column diagnostics jsonb not null default '{}',
@@ -419,7 +419,7 @@ begin
       lat=null;lng=null;
       if candidate->>'coordinate_kind'='place' then lat=(candidate->>'latitude')::double precision;lng=(candidate->>'longitude')::double precision;end if;
       insert into public.places(owner_id,name,country,city,address,categories,latitude,longitude,location_source)
-        values(auth.uid(),candidate->>'name',coalesce(candidate->>'country',''),coalesce(candidate->>'city',''),coalesce(candidate->>'address',''),array(select jsonb_array_elements_text(candidate->'categories')),lat,lng,case when lat is not null then coalesce(s.map_data->>'final_url','') else '' end)
+        values(auth.uid(),left(case when coalesce(candidate->>'branch','')<>'' and position(candidate->>'branch' in candidate->>'name')=0 then (candidate->>'name')||' · '||(candidate->>'branch') else candidate->>'name' end,200),coalesce(candidate->>'country',''),coalesce(candidate->>'city',''),coalesce(candidate->>'address',''),array(select jsonb_array_elements_text(candidate->'categories')),lat,lng,case when lat is not null then coalesce(s.map_data->>'final_url','') else '' end)
         returning id into pid;
       result=jsonb_set(result,array[i::text,'place_id'],to_jsonb(pid::text));
     end if;
@@ -428,7 +428,7 @@ begin
   update public.sources set candidates=result where id=s.id;
 end $$;
 
-insert into supabase_migrations.schema_migrations(version,name) values ('20261021002018','import_content_pipeline');
+insert into supabase_migrations.schema_migrations(version,name) values ('20261021003629','import_content_pipeline');
 
 -- 授權剛剛由你建立的唯一 Auth 帳號；不輸出帳號、密碼或金鑰。
 insert into public.profiles(owner_id,display_name)

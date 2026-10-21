@@ -129,7 +129,7 @@ begin
       lat=null;lng=null;
       if candidate->>'coordinate_kind'='place' then lat=(candidate->>'latitude')::double precision;lng=(candidate->>'longitude')::double precision;end if;
       insert into public.places(owner_id,name,country,city,address,categories,latitude,longitude,location_source)
-        values(auth.uid(),candidate->>'name',coalesce(candidate->>'country',''),coalesce(candidate->>'city',''),coalesce(candidate->>'address',''),array(select jsonb_array_elements_text(candidate->'categories')),lat,lng,case when lat is not null then coalesce(s.map_data->>'final_url','') else '' end)
+        values(auth.uid(),left(case when coalesce(candidate->>'branch','')<>'' and position(candidate->>'branch' in candidate->>'name')=0 then (candidate->>'name')||' · '||(candidate->>'branch') else candidate->>'name' end,200),coalesce(candidate->>'country',''),coalesce(candidate->>'city',''),coalesce(candidate->>'address',''),array(select jsonb_array_elements_text(candidate->'categories')),lat,lng,case when lat is not null then coalesce(s.map_data->>'final_url','') else '' end)
         returning id into pid;
       result=jsonb_set(result,array[i::text,'place_id'],to_jsonb(pid::text));
     end if;

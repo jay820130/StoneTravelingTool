@@ -117,7 +117,7 @@ test.describe.serial("private collection on real local Supabase", () => {
       .fill("測試內容：讀不到社群文章時保留這段補充");
     await dialog.getByRole("button", { name: "儲存補充內容並重新解析" }).click();
     await expect(dialog.getByRole("button", { name: "儲存補充內容並重新解析" })).toBeEnabled();
-    await dialog.locator('input[type="file"]').setInputFiles({
+    await dialog.getByLabel("從相簿選圖", { exact: true }).setInputFiles({
       name: "test.png",
       mimeType: "image/png",
       buffer: Buffer.from(
@@ -125,6 +125,7 @@ test.describe.serial("private collection on real local Supabase", () => {
         "base64",
       ),
     });
+    await dialog.getByRole("button", { name: "儲存補充內容並重新解析" }).click();
     await expect(dialog.getByRole("link", { name: "查看私人截圖 ↗" })).toBeVisible();
     await dialog.getByLabel("選擇既有店家").selectOption({ label: "測試·大阪咖啡 · 大阪" });
     await dialog.getByRole("button", { name: "連結", exact: true }).click();
@@ -271,4 +272,75 @@ test.describe.serial("private collection on real local Supabase", () => {
       page.getByRole("heading", { name: "我的收藏 0 個地方", exact: true }),
     ).toBeVisible();
   });
+});
+
+test("mobile multi-image intake retains partial uploads and retries without duplicates", async ({
+  page,
+  playwright,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await login(page);
+  const url = "https://www.threads.com/@fictional/post/multi-image-e2e";
+  const tiny = Buffer.from(
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a5ZkAAAAASUVORK5CYII=",
+    "base64",
+  );
+  const large = Buffer.concat([tiny, Buffer.alloc(4_700_000)]); // Synthetic payload for the 4.5 MB platform boundary.
+  await page.getByLabel("收藏連結", { exact: true }).fill(url);
+  await page.getByText("附上文字或截圖（選填）", { exact: true }).click();
+  await expect(page.getByLabel("從相簿選圖", { exact: true })).toHaveAttribute("multiple", "");
+  await expect(page.getByLabel("拍照", { exact: true })).toHaveAttribute("capture", "environment");
+  await page.getByLabel("文章文字", { exact: true }).fill("虛構測試文字：兩張截圖，非真實店家。");
+  await page.getByLabel("從相簿選圖", { exact: true }).setInputFiles([
+    { name: "large-test.png", mimeType: "image/png", buffer: large },
+    { name: "second.png", mimeType: "image/png", buffer: tiny },
+  ]);
+  let puts = 0;
+  await page.route("**/storage/v1/object/upload/sign/**", async (route) => {
+    if (route.request().method() === "PUT" && ++puts === 2)
+      await route.fulfill({ status: 503, body: "Simulated upload interruption" });
+    else await route.continue();
+  });
+  await page.getByRole("button", { name: /收進口袋/ }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "圖片上傳尚未完成" })).toBeVisible();
+  let library = await (await page.request.get("/api/library")).json();
+  let source = library.sources.find((s: { original_url: string }) => s.original_url === url);
+  expect(source.intake_pending).toBe(true);
+  expect(source.content_text).toContain("虛構測試文字");
+  expect(
+    library.attachments.filter(
+      (a: { source_id: string; state: string }) => a.source_id === source.id && a.state === "ready",
+    ),
+  ).toHaveLength(1);
+  await page.unroute("**/storage/v1/object/upload/sign/**");
+  await page.getByRole("button", { name: /收進口袋/ }).click();
+  await expect(page.getByLabel("收藏連結", { exact: true })).toHaveValue("");
+  library = await (await page.request.get("/api/library")).json();
+  const sources = library.sources.filter((s: { original_url: string }) => s.original_url === url);
+  expect(sources).toHaveLength(1);
+  source = sources[0];
+  expect(source.intake_pending).toBe(false);
+  const attachments = library.attachments.filter(
+    (a: { source_id: string }) => a.source_id === source.id,
+  );
+  expect(attachments).toHaveLength(2);
+  expect(attachments.every((a: { state: string }) => a.state === "ready")).toBe(true);
+  const big = attachments.find((a: { size_bytes: number }) => a.size_bytes > 4_500_000);
+  const image = await page.request.get(`/api/attachments/${big.id}`);
+  expect(image.status()).toBe(200);
+  expect((await image.body()).length).toBe(large.length);
+  const anonymous = await playwright.request.newContext({ baseURL: "http://127.0.0.1:3000" });
+  expect((await anonymous.get(`/api/attachments/${big.id}`)).status()).toBe(401);
+  await anonymous.dispose();
+  await page
+    .locator(".source-card")
+    .filter({ hasText: "threads.com/@fictional/post/multi-image-e2e" })
+    .click();
+  const dialog = page.getByRole("dialog");
+  await expect(dialog.getByRole("link", { name: "查看私人截圖 ↗" })).toHaveCount(2);
+  await dialog.getByRole("button", { name: "刪除截圖", exact: true }).first().click();
+  await expect(dialog.getByRole("link", { name: "查看私人截圖 ↗" })).toHaveCount(1);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
+    true,
+  );
 });

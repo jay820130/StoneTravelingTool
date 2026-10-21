@@ -7,8 +7,8 @@
 1. 登入 [Dashboard](https://supabase.com/dashboard)，建立新專案，選靠近使用地的區域。以當下頁面確認方案、免費專案名額與費用；需要付款時先比較，不自動升級。
 2. 資料庫密碼放自己的密碼管理器，不貼進對話。
 3. Authentication → Sign In / Providers 設定關閉 Allow new users to sign up 與匿名登入，保留 Email provider 啟用。程式另以 `profiles` 成員資格阻擋未受邀帳號。
-4. Authentication → Users 建立自己的 email／password 帳號並確認啟用。首次設定若恰好只有這一個 Auth 帳號，可在 SQL Editor 新建查詢，完整執行 [first-time.sql](../supabase/setup/first-time.sql)。檔案包含四份 migration、私人 Storage、migration history，會授權這個唯一帳號；若 public 已有資料表、screenshots bucket 已存在，或帳號數不是一個，會停止，不刪除既有資料。全部步驟在同一交易執行；成功結果應為 `初始化完成`、`invited_accounts=1`、`protected_tables=10`、`screenshots_private=true`。此檔以 `node scripts/build-bootstrap.mjs` 從 migrations 產生，後續變更使用 CLI migrations，勿重跑初始化。
-5. 若採取逐份執行四個 migration 的替代流程，須另外記錄 migration history 並明確指定帳號授權；**已執行 first-time.sql 者跳過此步驟**。使用 Authentication → Users 的 UUID 執行：
+4. Authentication → Users 建立自己的 email／password 帳號並確認啟用。首次設定若恰好只有這一個 Auth 帳號，可在 SQL Editor 新建查詢，完整執行 [first-time.sql](../supabase/setup/first-time.sql)。檔案包含五份 migration、私人 Storage、migration history，會授權這個唯一帳號；若 public 已有資料表、screenshots bucket 已存在，或帳號數不是一個，會停止，不刪除既有資料。全部步驟在同一交易執行；成功結果應為 `初始化完成`、`invited_accounts=1`、`protected_tables=13`、`screenshots_private=true`。此檔以 `node scripts/build-bootstrap.mjs` 從 migrations 產生，後續變更使用 CLI migrations，勿重跑初始化。
+5. 若採取逐份執行 migrations 的替代流程，須另外記錄 migration history 並明確指定帳號授權；**已執行 first-time.sql 者跳過此步驟**。使用 Authentication → Users 的 UUID 執行：
 
    ```sql
    insert into public.profiles(owner_id, display_name)
@@ -62,7 +62,19 @@ Codex 起初對此網域的 HTTPS CONNECT 被代理回應 403；2026-10-18 後�
 - 使用者希望先使用免費額度，未授權開通付費服務。日後可更換上述三個變數切回 OpenAI 相容 API；ChatGPT 訂閱不包含 API 費用。金鑰直接留在 Vercel，不貼到對話或 Codex。
 - 沒有 AI 時不發送資料，手動功能可繼續。社群網站可能限制讀取，需補文字／截圖，不承諾所有 IG、Threads、影片都能解析。
 - `NEXT_PUBLIC_MAP_TILE_URL`、`NEXT_PUBLIC_MAP_ATTRIBUTION` 可更換底圖。OSM 公共底圖僅供少量互動開發驗證；上線前閱讀最新政策，保留署名與 Referer，不預抓或離線下載。較大量需求需比較供應商額度與費用。
-- 目前沒有地理編碼服務，座標由人工確認。Maps 按鈕是一般外連，不使用付費 Places API 或儲存其專有資料。
+- 第二階段地理編碼設定與政策選用見 [phase2.md](phase2.md)。服務未啟用或找不到候選時仍可手動確認座標，不能使用城市中心代替。Maps 按鈕仍為一般外連，沒有付費 Places API。
+
+## 第二階段發布
+
+只對既有專案套用新增的 `import_content_pipeline` migration；**不要重跑 first-time.sql，也不要 reset**。先部署 DB 的相容新增欄位／RPC／私人 bucket MIME，再發布含新上傳流程的 Next.js。新表為內部 AI 快取、地理查詢快取與全站速率閘門；皆 RLS + service_role-only，沒有新增公開資料。
+
+Production 的 `AI_MODEL=gemini-3.5-flash-lite`、`AI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai`；保留既有 AI key、CRON_SECRET 和 Supabase keys。`AI_MODEL` 不再有程式預設值。地理服務選用前保留 `GEOCODING_PROVIDER` 空白；其他設定見 `.env.example`。保持現有 Supabase 每分鐘排程，不新增受 Hobby 限制的 Vercel 高頻 Cron。
+
+附件先由 API 預留 pending 列，再簽名直傳 Storage、驗證完成為 ready，最後 requeue。圖片本體不穿越 Vercel 請求／回應，因此 5 MiB 上限可用；完成驗證 API 只有小型 JSON。簽名上傳網址是短期持有者憑證，勿記錄或分享；查看圖片用 60 秒簽名網址，bucket 維持 private。
+
+worker 僅將 job ID、狀態及固定錯誤代碼寫 Function logs。診斷的必要網址鏈、有限中繼資料、最多 400 字 input preview 存擁有者 RLS 保護的來源資料，不印完整私人內容或 key。清理來源、備份與復原時，內部快取也應納入私人資料管理。
+
+發布後實際版本、檢查及未驗證清單以 [第二階段報告](phase2.md) 為準。第三階段真實資料驗收需另獲使用者確認。
 
 ## 備份、復原與停止服務
 

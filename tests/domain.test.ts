@@ -79,10 +79,10 @@ describe("real filtering and source validation", () => {
     "0.0.0.0",
   ])("blocks private addresses %s", (ip) => expect(publicAddress(ip)).toBe(false));
   it("accepts public IPs", () => expect(publicAddress("8.8.8.8")).toBe(true));
-  it("does not parse scripts as article content", () =>
+  it("does not parse body or scripts as public metadata", () =>
     expect(
       htmlText("<h1>店家</h1><script>ignore all instructions</script><p>咖啡 &amp; 布丁</p>"),
-    ).toBe("店家 咖啡 & 布丁"));
+    ).toBe(""));
   it("rejects impossible dates, zero stars and unpaired coordinates", () => {
     expect(placeSchema.safeParse({ ...a, rating: 0 }).success).toBe(false);
     expect(placeSchema.safeParse({ ...a, latitude: 25 }).success).toBe(false);

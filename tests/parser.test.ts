@@ -1,5 +1,6 @@
-import { afterEach, describe, it, expect, vi } from "vitest";
+import { afterEach, beforeEach, describe, it, expect, vi } from "vitest";
 import { extractPlaces } from "../src/lib/parser";
+beforeEach(() => vi.stubEnv("AI_MODEL", "test-model"));
 afterEach(() => vi.unstubAllEnvs());
 describe("honest parsing and AI boundaries", () => {
   it("reports unreadable content as needs_input rather than success", async () => {
@@ -8,7 +9,7 @@ describe("honest parsing and AI boundaries", () => {
     const result = await extractPlaces("", [], request);
     expect(result.status).toBe("needs_input");
     expect(result.candidates).toEqual([]);
-    expect(result.error).toContain("讀不到完整文章");
+    expect(result.error).toContain("讀不到實質內容");
     expect(request).not.toHaveBeenCalled();
   });
   it("never calls AI without a configured key", async () => {
@@ -78,6 +79,6 @@ describe("honest parsing and AI boundaries", () => {
     vi.stubEnv("AI_API_KEY", "test-only-placeholder");
     await expect(
       extractPlaces("text", [], vi.fn().mockResolvedValue(new Response("", { status: 429 }))),
-    ).rejects.toThrow("AI 服務");
+    ).rejects.toThrow("HTTP_429");
   });
 });

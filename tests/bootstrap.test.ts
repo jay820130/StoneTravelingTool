@@ -49,7 +49,7 @@ describe("first-time hosted project bootstrap", () => {
       {
         status: "初始化完成",
         invited_accounts: 1,
-        protected_tables: 10,
+        protected_tables: 13,
         screenshots_private: true,
       },
     ]);
@@ -64,6 +64,7 @@ describe("first-time hosted project bootstrap", () => {
       { version: "202610180002", name: "storage" },
       { version: "202610180003", name: "candidates" },
       { version: "202610180004", name: "job_recovery" },
+      { version: "20261021003629", name: "import_content_pipeline" },
     ]);
     expect(
       (
