@@ -1,6 +1,6 @@
 # 第二階段：解析與圖片上傳
 
-更新：2026-10-21。使用者已授權第二階段；第三階段尚未開始。本報告區分程式完成、測試環境與外部待驗證項目。原需求仍適用。
+更新：2026-10-21。第二階段程式與部署已完成；實機、服務選用及額度項目仍列為待辦。第三階段尚未開始。本報告區分程式完成、測試環境與外部待驗證項目。原需求仍適用。
 
 ## 已實作
 
@@ -37,7 +37,8 @@
 - 114 項單元／PGlite 測試已覆蓋通過（完整 113 項通過後，新增一項候選關聯回歸，相關 35 項重跑通過）。涵蓋規則解析、SSRF 每跳驗證、metadata-only、URL-only 不送 AI、schema、429、HEIC 格式、RLS、上傳預留、快取鎖、延遲重試、人工資料保留。
 - 本機 Supabase 真實 Auth／PostgreSQL／Storage + Chromium：**6 項流程通過，51.1 秒**。資料為虛構；包含多圖、4.7 MB 圖片、第二張 PUT 503 後重試不重複、來源與首張圖片保留、刪圖、另一帳號隔離、匿名拒絕、390×844 無橫向溢出。
 - 型別、Lint、Next.js 正式建置全部通過。
-- 正式 Supabase 已套用 `20261021003629_import_content_pipeline`；本地 migration 檔名同步平台產生的版本，避免 CLI 再次套用。Vercel 正式部署進行中。本次唯讀確認現有 Cron 每分鐘啟用，pg_cron 1.6.4／pg_net 0.20.4；12 份來源、20 家店、0 次到訪、0 張附件，12 項工作皆 done。migration 前後筆數一致，原有資料保留；13 張 public 表啟用 RLS，AI 快取及 claim RPC 對匿名／一般登入使用者均不可存取，worker 可呼叫，私人 bucket 的 5 種 MIME 與 5 MiB 限制正確。
+- 正式 Supabase 已套用 `20261021003629_import_content_pipeline`；本地 migration 檔名同步平台產生的版本，避免 CLI 再次套用。Vercel 正式部署 `dpl_31Brwb4BYK1fjqgdJyymT6uVGMyW` 為 READY，程式提交 `713bedecc80a792d18f816e79ce7a674be3470c0` 已指向 [正式網址](https://stone-traveling-tool.vercel.app/)，其後僅補更新文件。Production 已明確設定 `AI_MODEL=gemini-3.5-flash-lite` 與 Gemini 相容端點，保留既有 key。本次唯讀確認現有 Cron 每分鐘啟用，pg_cron 1.6.4／pg_net 0.20.4；12 份來源、20 家店、0 次到訪、0 張附件，12 項工作皆 done。migration 前後筆數一致，原有資料保留；13 張 public 表啟用 RLS，AI 快取及 claim RPC 對匿名／一般登入使用者均不可存取，worker 可呼叫，私人 bucket 的 5 種 MIME 與 5 MiB 限制正確。
+- 發布後匿名 HTTP：首頁 200，session 200 且 configured=true／user=null，library、worker、附件端點皆 401。新部署的 error／fatal Function logs 查詢未回傳紀錄；這些是基本部署檢查，沒有提交九個真實來源、沒有呼叫 Gemini，不代表第三階段通過。
 - 正式 RLS advisors 的既有項目：內部 request_quotas 與新增的 ai_extractions／geocode_cache／geocode_gate 無 client policy 是刻意設計（[RLS advisor 說明](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy)）；consume_quota 為必要的 authenticated RPC；平台 rls_auto_enable 經 SQL 確認回傳 event_trigger，不能像一般 RPC 呼叫；Auth 密碼保護的既有提示未變動，不假稱所有 advisories 清零。
 
 ## 尚未驗證／外部條件
