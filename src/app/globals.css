@@ -1851,3 +1851,50 @@ h2 small {
     animation: none !important;
   }
 }
+
+/* Link + screenshots intake and explicit location confirmation. */
+.quick-fields {
+  min-width: 0;
+}
+.quick-content {
+  padding-top: 10px;
+}
+.quick-content summary {
+  cursor: pointer;
+  min-height: 44px;
+  padding: 10px 0;
+}
+.image-picker,
+.location-search {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+.image-picker .attachment,
+.location-candidate {
+  overflow-wrap: anywhere;
+}
+.upload-button {
+  position: relative;
+  min-height: 44px;
+}
+.upload-button input[type="file"] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  display: block;
+}
+.upload-button:focus-within {
+  outline: 2px solid var(--accent, #61785d);
+  outline-offset: 3px;
+}
+.location-candidate {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #ddd;
+  border-radius: 10px;
+}

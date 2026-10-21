@@ -6,7 +6,9 @@ export async function api<T = unknown>(path: string, body?: unknown): Promise<T>
     body: body === undefined ? undefined : form ? body : JSON.stringify(body),
     cache: "no-store",
   });
-  const result = await res.json();
+  const result = await res.json().catch(() => {
+    throw new Error(`操作未完成（HTTP ${res.status}），已保存的資料仍會保留。`);
+  });
   if (!res.ok) throw new Error(result.error || "操作未完成");
   return result;
 }

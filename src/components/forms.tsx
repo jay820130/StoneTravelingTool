@@ -1,10 +1,14 @@
 "use client";
 import { useState } from "react";
-import { Plus, Trash2, ExternalLink, Upload, Link2, Check } from "lucide-react";
+import { Plus, Trash2, ExternalLink, Link2, Check } from "lucide-react";
 import type { Place, Visit, Library, Source } from "@/lib/types";
 import { categories, statusLabels } from "@/lib/types";
 import { api } from "@/lib/client-api";
 import { Field, RatingSelect } from "./ui";
+
+import { ImagePicker } from "./image-picker";
+import { LocationSearch } from "./location-search";
+import { uploadImage } from "@/lib/upload-images";
 
 function ErrorMessage({ error }: { error: string }) {
   return error ? (
@@ -29,6 +33,7 @@ export function PlaceForm({
     address: place?.address ?? "",
     latitude: place?.latitude?.toString() ?? "",
     longitude: place?.longitude?.toString() ?? "",
+    location_source: place?.location_source ?? "",
     categories: place?.categories ?? [],
     tags: place?.tags?.join("、") ?? "",
     rating: place?.rating ?? null,
@@ -155,6 +160,21 @@ export function PlaceForm({
         <p className="muted">
           僅填入你確認的店址座標。沒有座標的店家仍會保留在清單，請勿用城市中心代替。
         </p>
+        <LocationSearch
+          initialQuery={[p.name, p.city, p.address].filter(Boolean).join(" ")}
+          onSelect={(c) =>
+            setP({
+              ...p,
+              latitude: String(c.latitude),
+              longitude: String(c.longitude),
+              address: c.address,
+              country: c.country,
+              city: c.city,
+              location_source: c.provider + " · " + c.attribution,
+            })
+          }
+        />
+        {p.location_source && <small>位置來源：{p.location_source}</small>}
         <div className="form-row">
           <Field label="緯度">
             <input
@@ -325,6 +345,9 @@ export function SourceEditor({
   const [chosen, setChosen] = useState<number[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [files, setFiles] = useState<File[]>([]);
+  const [notice, setNotice] = useState("");
+  const attachments = data.attachments.filter((a) => a.source_id === source.id);
   const act = async (fn: () => Promise<unknown>) => {
     setBusy(true);
     setError("");
@@ -355,7 +378,22 @@ export function SourceEditor({
         className="form"
         onSubmit={(e) => {
           e.preventDefault();
-          void act(() => api("sources/retry", { id: source.id, content_text: text, reason }));
+          void act(async () => {
+            await api("sources/intake", { id: source.id, content_text: text, reason });
+            setNotice("補充文字已保存，正在保存圖片…");
+            try {
+              for (const file of files) {
+                await uploadImage(source.id, file);
+                setFiles((current) => current.filter((f) => f !== file));
+                setNotice("圖片已保存，正在完成剩餘步驟…");
+              }
+              await api("sources/retry", { id: source.id, content_text: text, reason });
+              setNotice("內容與圖片已保存，已排入解析。解析失敗仍可重試。");
+            } catch (error) {
+              await onChanged();
+              throw error;
+            }
+          });
         }}
       >
         <Field label="我收藏的原因">
@@ -369,36 +407,41 @@ export function SourceEditor({
             placeholder="貼上你有權使用的文章文字；讀不到的社群貼文也可以用截圖補充。"
           />
         </Field>
+        <ImagePicker
+          files={files}
+          onChange={setFiles}
+          disabled={busy}
+          existingCount={attachments.filter((a) => a.state !== "pending").length}
+          existingBytes={attachments
+            .filter((a) => a.state !== "pending")
+            .reduce((n, a) => n + (a.size_bytes || 0), 0)}
+        />
         <button className="secondary" disabled={busy}>
           儲存補充內容並重新解析
         </button>
       </form>
       <div className="attachment-area">
-        <label className="upload-button">
-          <Upload size={18} /> 上傳截圖（最多 3 張，每張 5 MB）
-          <input
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            disabled={busy}
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) {
-                const form = new FormData();
-                form.set("file", f);
-                form.set("source_id", source.id);
-                void act(() => api("attachments", form));
-              }
-              e.target.value = "";
-            }}
-          />
-        </label>
         {data.attachments
           .filter((a) => a.source_id === source.id)
           .map((a) => (
             <div className="attachment" key={a.id}>
-              <a href={`/api/attachments/${a.id}`} target="_blank" rel="noopener noreferrer">
-                查看私人截圖 ↗
-              </a>
+              {a.state === "pending" ? (
+                <span>
+                  圖片尚未確認{" "}
+                  <button
+                    type="button"
+                    className="text-button"
+                    disabled={busy}
+                    onClick={() => void act(() => api("attachments/complete", { id: a.id }))}
+                  >
+                    重試確認
+                  </button>
+                </span>
+              ) : (
+                <a href={`/api/attachments/${a.id}`} target="_blank" rel="noopener noreferrer">
+                  查看私人截圖 ↗
+                </a>
+              )}
               <button
                 className="icon-button"
                 aria-label="刪除截圖"
@@ -410,6 +453,11 @@ export function SourceEditor({
             </div>
           ))}
       </div>
+      {notice && (
+        <p className="alert" role="status">
+          {notice}
+        </p>
+      )}
       {source.summary && (
         <section className="source-summary">
           <h3>文章摘要</h3>
@@ -431,7 +479,11 @@ export function SourceEditor({
                 }
               />
               <span>
-                <strong>{c.name}</strong>
+                <strong>
+                  {c.name}
+                  {c.branch ? ` · ${c.branch}` : ""}
+                </strong>
+                {c.location_clues && <small>{c.location_clues}</small>}
                 <small>
                   {[c.country, c.city, c.address].filter(Boolean).join(" · ") || "地點待確認"}
                 </small>

@@ -31,6 +31,8 @@ import { emptyFilters, filterPlaces, mapsUrl, stars, type Filters } from "@/lib/
 import { api } from "@/lib/client-api";
 import { Brand, Empty, Field, MapDrawing, Modal } from "./ui";
 import { PlaceForm, SourceEditor, VisitForm } from "./forms";
+import { ImagePicker } from "./image-picker";
+import { uploadImage } from "@/lib/upload-images";
 import ExportPanel from "./export-panel";
 const PlaceMap = dynamic(() => import("./map"), {
   ssr: false,
@@ -63,6 +65,9 @@ export default function TravelApp() {
   const [error, setError] = useState("");
   const [quick, setQuick] = useState("");
   const [reason, setReason] = useState("");
+  const [contentText, setContentText] = useState("");
+  const [quickImages, setQuickImages] = useState<File[]>([]);
+  const [attachOpen, setAttachOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const sessionGeneration = useRef(0);
@@ -83,6 +88,7 @@ export default function TravelApp() {
         const url = new URLSearchParams(window.location.search).get("url");
         if (url) {
           setQuick(url);
+          setAttachOpen(new URLSearchParams(window.location.search).get("attach") === "1");
           setTab("inbox");
         }
       })
@@ -124,6 +130,9 @@ export default function TravelApp() {
       setError("");
       setQuick("");
       setReason("");
+      setContentText("");
+      setQuickImages([]);
+      setAttachOpen(false);
       setTab("places");
       setFilters(emptyFilters);
     } catch (e) {
@@ -318,21 +327,52 @@ export default function TravelApp() {
               e.preventDefault();
               setBusy(true);
               try {
+                setError("");
+                const supplement = !!contentText.trim() || quickImages.length > 0;
                 const result = await api<{ duplicate: boolean; source: Source }>("sources", {
                   url: quick,
                   reason,
+                  content_text: contentText,
+                  defer_parse: supplement,
                 });
+                setNotice(result.duplicate ? "這份連結已收藏，沒有重複建立。" : "連結已保存。");
+                if (supplement) {
+                  const text =
+                    result.duplicate && result.source.content_text.trim() !== contentText.trim()
+                      ? [result.source.content_text, contentText].filter(Boolean).join("\n\n")
+                      : contentText;
+                  const why = result.duplicate ? result.source.reason : reason;
+                  await api("sources/intake", {
+                    id: result.source.id,
+                    content_text: text,
+                    reason: why,
+                  });
+                  for (const file of quickImages) {
+                    await uploadImage(result.source.id, file);
+                    setQuickImages((current) => current.filter((f) => f !== file));
+                    setNotice("連結與圖片已保存，正在完成剩餘步驟…");
+                  }
+                  await api("sources/retry", {
+                    id: result.source.id,
+                    content_text: text,
+                    reason: why,
+                  });
+                }
                 setNotice(
-                  result.duplicate
+                  result.duplicate && !supplement
                     ? "這份連結已收藏，沒有重複建立。"
-                    : "連結已收藏！解析會另外進行，也可以先手動補上店家。",
+                    : "收藏與補充內容已保存，解析會另外進行。",
                 );
                 setQuick("");
                 setReason("");
+                setContentText("");
+                setQuickImages([]);
+                setAttachOpen(false);
                 await refresh();
                 setTab("inbox");
               } catch (e) {
                 setError((e as Error).message);
+                await refresh().catch(() => {});
               } finally {
                 setBusy(false);
               }
@@ -360,6 +400,26 @@ export default function TravelApp() {
                   onChange={(e) => setReason(e.target.value)}
                   placeholder="為什麼想去？（選填）"
                 />
+              )}
+              {quick && (
+                <details
+                  className="quick-content"
+                  open={attachOpen}
+                  onToggle={(e) => setAttachOpen(e.currentTarget.open)}
+                >
+                  <summary>附上文字或截圖（選填）</summary>
+                  <Field label="文章文字">
+                    <textarea
+                      rows={4}
+                      value={contentText}
+                      disabled={busy}
+                      maxLength={30000}
+                      onChange={(e) => setContentText(e.target.value)}
+                      placeholder="貼上文案，或選擇下面的截圖"
+                    />
+                  </Field>
+                  <ImagePicker files={quickImages} onChange={setQuickImages} disabled={busy} />
+                </details>
               )}
             </div>
             <button className="primary" disabled={busy}>
